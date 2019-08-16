@@ -3,6 +3,8 @@
 #include "../comadapterdriver/utils/static_string.h"
 #include "../comadapterdriver/utils/utils.h"
 #include <cstdio>
+#include  <cctype>
+#include <cstdlib>
 using namespace std;
 
 namespace  StaticJSON {
@@ -24,6 +26,35 @@ constexpr bool use_ref_v = std::is_reference_v<TypeLikeT> || (!std::is_reference
 template<typename TargetT, typename TypeLikeT>
 using OptionalRef = Opt<TargetT, TypeLikeT, use_ref_v <TargetT, TypeLikeT>>;
 
+template <typename Iter>
+Iter skipWSUntil(Iter it, Iter end, char c) {
+    while(it != end) {
+        if(*it == c) return it;
+        else if(!std::isspace(*it)) return end;
+        ++it;
+    }
+    return end;
+}
+
+template <typename Iter>
+Iter skipWS(Iter it, Iter end) {
+    while(it != end && std::isspace(*it) ) {
+        ++it;
+    }
+    return it;
+}
+
+template <typename Iter, typename Pred>
+Iter skipWSUntil(Iter it, Iter end, Pred c) {
+    while(it != end) {
+        bool p = c(*it);
+        if(p) return it;
+        else if(!std::isspace(*it) && !p) return end;
+
+        ++it;
+    }
+    return end;
+}
 
 template<typename BoolLikeT = bool>
 class BaseBool {
@@ -44,8 +75,7 @@ public:
     template<typename U = BoolLikeT>
     BaseBool(U & v, typename std::enable_if_t<use_ref_v<bool, U&>>* = 0) : m_value{v} { }
 
-    using  SerialisedTemplate = filled_ss<' ', 5>;
-    static constexpr std::size_t StrSize = SerialisedTemplate::Size;
+    static constexpr std::size_t StrSize = 5;
     operator BoolLikeT&() {
         return m_value.v;
     }
@@ -73,8 +103,34 @@ public:
         }
     }
     template <typename Iter>
-    void SerialiseFast(Iter it) {
-        Serialise(it);
+    Iter Deserialise(Iter it, Iter end) {
+        if(it = skipWSUntil(it, end, [](char c){return c == 'f' || c == 't';}); it == end) return end;
+        char t[] = "rue";
+        char f[] = "alse";
+        char *cmp = 0;
+        bool to_assign = false;
+        if(*it == 't') {
+            cmp = t;
+            to_assign = true;
+        } else {
+            cmp =f;
+        }
+        ++it;
+        for(; *cmp != 0 && it != end; cmp ++) {
+            if(*it != *cmp) return end;
+            ++it;
+        }
+        if(it == end) return end;
+        if(*cmp != 0) return end;
+
+        if(it = skipWS(it, end); it == end) return end;
+        m_value.v = to_assign;
+
+        return it;
+    }
+    template<typename T >
+    bool operator==(const T & other) const {
+        return other.m_value.v == m_value.v;
     }
 };
 
@@ -84,8 +140,7 @@ template <std::size_t MaxDigits, typename FPType>
 class Double {
     FPType m_value = 0;
 public:
-    using  SerialisedTemplate = filled_ss<' ', MaxDigits + 2>;
-    static constexpr std::size_t StrSize = SerialisedTemplate::Size;
+    static constexpr std::size_t StrSize = MaxDigits + 2;
 
     operator FPType&() {
         return m_value;
@@ -108,16 +163,30 @@ public:
             ++it;
         }
     }
-
+    template<typename T >
+    bool operator==(const T & other) const {
+        return other.m_value == m_value;
+    }
     template <typename Iter>
-    void SerialiseFast(Iter it) {
-        Serialise(it);
-//        char b[StrSize+1];
-//        std::size_t r = std::snprintf(b, StrSize+1, "%g", m_value);
-//        for(std::size_t i = 0; i < r; i ++) {
-//            *it = b[i];
-//            ++it;
-//        }
+    Iter Deserialise(Iter it, Iter end) {
+        if(it = skipWS(it, end); it == end) return end;
+        char buf[20];
+        int l = 0;
+        while(!std::isspace(*it)) {
+            buf[l] = *it;
+            ++it;
+            ++l;
+        }
+        buf[l] = 0;
+
+        char *ptr = 0;
+        m_value = std::strtod(buf, &ptr);
+        if(ptr == buf) {
+            m_value = 0;
+            return end;
+        }
+        it += ptr - buf;
+        return skipWS(it, end);
     }
 };
 
@@ -125,8 +194,7 @@ template <std::size_t LengthMax>
 class String {
     std::array<char, LengthMax> m_value;
 public:
-    using  SerialisedTemplate = concat<SS("\""), filled_ss<' ', LengthMax+1>>;
-    static constexpr std::size_t StrSize = SerialisedTemplate::Size;
+    static constexpr std::size_t StrSize = LengthMax+2;
     String(const char * v = "") {
         *this = v;
     }
@@ -159,16 +227,26 @@ public:
             ++it;
         }
     }
+    template<typename T >
+    bool operator==(const T & other) const {
+        return other.m_value == m_value;
+    }
+
     template <typename Iter>
-    void SerialiseFast(Iter it) {
-        Serialise(it);
-//        std::size_t i = 0;
-//        ++it;
-//        for(; i < LengthMax && m_value[i] != 0; i++) {
-//            *it = m_value[i];
-//            ++it;
-//        }
-//        *it = '"';
+    Iter Deserialise(Iter it, Iter end) {
+        if(it = skipWSUntil(it, end, '"'); it == end) return end;
+        ++it;
+        std::size_t i = 0;
+        while(*it != '"' && it != end) {
+            m_value[i] = *it;
+            ++it;
+            i++;
+            if (i >= LengthMax) return end;
+        }
+        if(it == end) return end;
+        if (i < LengthMax - 1) m_value[i] = 0;
+        ++it;
+        return it;
     }
 };
 
@@ -202,8 +280,7 @@ class Int {
     }
 
 public:
-    using  SerialisedTemplate = filled_ss<' ', MaxDigits + 1>;
-    static constexpr std::size_t StrSize = SerialisedTemplate::Size;
+    static constexpr std::size_t StrSize = MaxDigits + 1;
     operator IntT&() {
         return m_value;
     }
@@ -213,17 +290,6 @@ public:
     }
     template <typename Iter>
     void Serialise(Iter it) {
-//        char b[StrSize+1];
-//        std::size_t r = std::snprintf(b, StrSize+1, "%lld", std::int64_t(m_value));
-
-//        for(std::size_t i = 0; i < r; i ++) {
-//            *it = b[i];
-//            ++it;
-//        }
-//        for(std::size_t i = r; i < StrSize; i++) {
-//            *it = ' ';
-//            ++it;
-//        }
         auto f = it;
         for(std::size_t i = 0; i < StrSize; i++) {
                     *it = ' ';
@@ -231,38 +297,44 @@ public:
                 }
         i64toa_naive(m_value, f);
     }
-    template <typename Iter>
-    void SerialiseFast(Iter it) {
-        Serialise(it);
-//        char b[StrSize+1];
-//        std::size_t r = std::snprintf(b, StrSize+1, "%lld", std::int64_t(m_value));
-//        for(std::size_t i = 0; i < r; i ++) {
-//            *it = b[i];
-//            ++it;
-//        }
+    template<typename T >
+    bool operator==(const T & other) const {
+        return other.m_value == m_value;
+    }
 
-//        i64toa_naive(m_value, it);
+    template <typename Iter>
+    Iter Deserialise(Iter it, Iter end) {
+        if(it = skipWS(it, end); it == end) return end;
+        char buf[20];
+        int l = 0;
+        while(!std::isspace(*it)) {
+            buf[l] = *it;
+            ++it;
+            ++l;
+        }
+        buf[l] = 0;
+
+        char *ptr = 0;
+        m_value = std::strtoll(buf, &ptr, 10);
+        if(ptr == buf) {
+            m_value = 0;
+            return end;
+        }
+        it += ptr - buf;
+        return skipWS(it, end);
     }
 };
-
-
-template <typename FirstMember = SS(""), typename ... OtherMembers>
-struct ArrayConcatHelper {
-    using SerialisedTemplate = concat<typename FirstMember::SerialisedTemplate, concat<SS(","), typename OtherMembers::SerialisedTemplate>...>;
-};
-
-//template <>
-//struct ArrayConcatHelper <SS("")> {
-//    using SerialisedTemplate = SS("");
-//}
 
 template <typename ...Members>
 class Array {
     std::tuple<Members...> m_members;
 
+    template<typename OtherT, std::size_t ... Is>
+    bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
+        return (true && ... && (std::get<Is>(other.m_members) == std::get<Is>(m_members)));
+    }
 public:
     static constexpr std::size_t  Length = sizeof... (Members);
-    using  SerialisedTemplate = SString::concat<SS("["), typename ArrayConcatHelper<Members...>::SerialisedTemplate, SS("]")>;
 
     static constexpr std::size_t StrSize = 2 + Length - 1 + (0 + ... + Members::StrSize);
     template<std::size_t index>
@@ -295,14 +367,48 @@ public:
         }
        *it  = ']';
     }
+    template <typename OtherT>
+    bool operator==(const OtherT & other) const {
+        return cmp_helper(other, std::make_index_sequence<Length>());
+    }
+
     template <typename Iter>
-   void SerialiseFast(Iter it) {
-       ++it;
-       foreach([&](auto &m) {
-           m.SerialiseFast(it);
-           it += m.StrSize+1;
-       });
-   }
+    Iter Deserialise(Iter it, Iter end) {
+        it = skipWSUntil(it, end, '[');
+        if(it == end) return end;
+         ++it;
+        std::size_t filled = 0;
+        bool err = false;
+
+        foreach(
+                [&](auto &v){
+                if(err || *it == ']') return ;
+                 Iter cur =  v.Deserialise(it, end);
+                if(cur != end) {
+                    filled ++;
+                    while(cur != end && *cur != ']' && *cur != ',') ++cur;
+                    if(cur == end) {err = true; return;}
+                    if(*cur == ',') ++cur;
+
+                    it = cur;
+                    it = skipWS(it, end);
+                    if(it == end) {err = true; return;}
+                } else {
+                    err = true;
+                }
+        });
+
+        if (filled < Length) {
+            //TODO mark other fields as uninit
+        }
+        if(err) return end;
+
+        if(*it != ']' ) return end;
+        if(it == end) return end;
+        ++it;
+        it = skipWS(it, end);
+        return it;
+    }
 };
 
 template <typename SSName, typename Obj>
@@ -311,10 +417,9 @@ struct WithName{
     using MemberT = Obj;
     MemberT member;
 
-    using  SerialisedTemplate = concat<SS("\"") , Name, SS("\":"), typename MemberT::SerialisedTemplate>;
     static constexpr std::size_t StrSize =
             + MemberT::StrSize // value
-            + Name::Size //names
+            + Name::Size //name
             + ( 1 + 2) // colon and quates
             ;
     template <typename Iter>
@@ -332,27 +437,57 @@ struct WithName{
         member.Serialise(it);
     }
     template <typename Iter>
-    void SerialiseFast(Iter it) {
-        it += 2 + Name::Size + 1;
-        member.SerialiseFast(it);
+    Iter Deserialise(Iter it, Iter end) {
+        it = skipWSUntil(it, end, '"');
+        if(it == end) return end;
+
+        ++it;
+        for(std::size_t i = 0; i < Name::Size && it != end; i++) {
+            if(Name::to_str()[i] != *it) {
+                return end;
+            }
+            ++it;
+        }
+        if(it == end) return end;
+        it = skipWSUntil(it, end, '"');
+        if(it == end) return end;
+        ++it;
+        it = skipWSUntil(it, end, ':');
+        if(it == end) return end;
+        ++it;
+        it = skipWS(it, end);
+        if(it == end) return end;
+        return member.Deserialise(it, end);
+    }
+
+    template <typename OtherT>
+    bool operator==(const OtherT & other)const  {
+        return compare_v<Name, OtherT::Name> && member == other;
     }
 };
 
 template <typename ...Members>
 class Object {
-    std::tuple<Members...> m_members;
-    static constexpr std::tuple<typename Members::Name...> m_names;
+    using MemberTupleT = std::tuple<Members...>;
+    MemberTupleT m_members;
+
 
     template <typename> struct IsWithName : std::false_type { };
     template <typename SS, typename MemberT> struct IsWithName<WithName<SS, MemberT>> : std::true_type { };
 
     static_assert((true && ... && IsWithName<Members>::value), "Please, use WithName wrapper to create object members");
+
+    template<typename OtherT, std::size_t ... Is>
+    bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
+        using OT = std::decay_t<OtherT>;
+        bool namesCorrect =  (true && ... && ( compare_v<typename tuple_element_t<Is, typename OtherT::MemberTupleT>::Name, typename tuple_element_t<Is, MemberTupleT>::Name>));
+        bool valsCorrect =  (true && ... && (std::get<Is>(other.m_members).member == std::get<Is>(m_members).member));
+        return namesCorrect && valsCorrect;
+    }
 public:
 
     static constexpr std::size_t  Length = sizeof... (Members);
     static constexpr std::size_t StrSize = 2 + Length - 1 + (0 + ... + Members::StrSize);
-
-    using  SerialisedTemplate = SString::concat<SS("{"), typename ArrayConcatHelper<Members...>::SerialisedTemplate, SS("}")>;
 
     template<std::size_t index>
     auto & at() {
@@ -363,14 +498,7 @@ public:
     void foreach(Callable &&c) {
         iterateTuple(m_members, c);
     }
-     template <typename Iter>
-    void SerialiseFast(Iter it) {
-        ++it;
-        foreach([&](auto &m) {
-            m.SerialiseFast(it);
-            it += m.StrSize + 1;
-        });
-    }
+
     template <typename Iter>
     void Serialise(Iter it) {
         *it = '{';
@@ -392,27 +520,44 @@ public:
         }
        *it  = '}';
     }
-};
+    template <typename Iter>
+    Iter Deserialise(Iter it, Iter end) {
+        it = skipWSUntil(it, end, '{');
+        if(it == end) return end;
+         ++it;
+        //props finding
+        bool err = false;
+        bool nothingFound = true;
+        do {
+            nothingFound = true;
+            foreach(
+                    [&](auto &kv){
+                    if(err || !nothingFound || *it == '}') return ;
+                     Iter cur =  kv.Deserialise(it, end);
+                    if(cur != end) {
+                        nothingFound = false;
+                        it = cur;
+                        it = skipWSUntil(it, end, [](char c){return c == '}'||c==',';});
+                        if(cur == end) {err = true; return;}
+                        if(*cur == ',') ++cur;
+                        it = cur;
+                        it = skipWS(it, end);
+                        if(cur == end) {err = true; return;}
+                    }
+            });
 
-
-template <typename RootObj>
-class FastSerialiser {
-    RootObj &m_obj;
-
-    template <int size, char... chars>
-    constexpr std::array<char, size> ss_to_byte_array(X<tstring<chars...>>) {
-        return std::array<char, size>{chars...};
+            if(err) return end;
+        } while(!nothingFound);
+        it = skipWS(it, end);
+        if(it == end) return end;
+        if(*it != '}') return end;
+        ++it;
+        it = skipWS(it, end);
+        return it;
     }
-
-public:
-    FastSerialiser(RootObj & obj):m_obj(obj) {}
-    using  SerialisedTemplate = typename RootObj::SerialisedTemplate;
-    static constexpr std::size_t StrSize = RootObj::StrSize;
-    std::array<char, StrSize+1> output {ss_to_byte_array<StrSize+1>(typename RootObj::SerialisedTemplate())};
-
-    void Serialise() {
-        m_obj.SerialiseFast(output.data());
-        output[StrSize] = 0;
+    template <typename OtherT>
+    bool operator==(const OtherT & other) const {
+        return cmp_helper(other, std::make_index_sequence<Length>());
     }
 };
 
@@ -429,11 +574,7 @@ public:
         m_obj.Serialise(it);
     }
 };
-
-
 }
-
-
 
 using namespace StaticJSON;
 
@@ -487,30 +628,6 @@ std::int64_t measureTime(Callable &&function) {
         return  duration;
 }
 
-void measureFastSer() {
-    Msg1Type obj;
-
-
-    obj.at<1>() = "something";
-    obj.at<0>().at<1>() = 5000001;
-    obj.at<0>().at<2>() = 42;
-    obj.at<0>().at<3>().at<1>() = 101452;
-    obj.at<0>().at<3>().at<2>() = "foo moo";
-
-    FastSerialiser fs(obj);
-    fs.Serialise();
-    cout << "Fast ser output" << endl << fs.output.data() << endl;
-
-
-    auto pass = [&obj, &fs]() {
-        for(int i = 0; i < 10000000; i ++) {
-            fs.Serialise();
-        }
-    };
-
-    auto us = measureTime(pass);
-    std::cout << "Fast serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
-}
 
 void measureSlowSer() {
     Msg1Type obj;
@@ -522,14 +639,14 @@ void measureSlowSer() {
     obj.at<0>().at<3>().at<2>() = "foo moo";
 
     char output[Msg1Type::StrSize+1];
-    for(int i = 0; i < Msg1Type::StrSize; i ++)output[i] = 'X';
+    for(std::size_t i = 0; i < Msg1Type::StrSize; i ++)output[i] = 'X';
 
     Serialiser s(obj);
     s.Serialise(output);
     output[Msg1Type::StrSize] = 0;
-    cout << "Slow ser output" << endl << output << endl;
+    cout << "serialisation output" << endl << output << endl;
 
-    auto pass = [&obj, &s]() {
+    auto pass = [ &s]() {
         for(int i = 0; i < 10000000; i ++) {
             char output[Msg1Type::StrSize+1];
             s.Serialise(output);
@@ -537,7 +654,7 @@ void measureSlowSer() {
     };
     auto us = measureTime(pass);
 
-    std::cout << "Slow serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
+    std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
 }
 
 int main()
@@ -549,21 +666,112 @@ int main()
     if constexpr (is_same_v<decltype (boolObj), bool>) {
         cout << "boolObj is bool = " << boolObj << endl;
     }
-    bool v = jsonBool;
+//    bool v = jsonBool;
 
     cout << "Msg1Type::StrSize " << Msg1Type::StrSize << endl;
-    cout << "Msg1Type::SerialisedTemplate::to_str() " << endl << Msg1Type::SerialisedTemplate::to_str() << endl;
 
+//     measureSlowSer();
 
+    using Msg1Type =
+            Object<
+                WithName<SS("array"), Array<
+                    Bool,
+                    Int<10, std::int32_t>,
+                    Int<5, std::int16_t>,
+                    Object<
+                        WithName<SS("boolean_field"), Bool>,
+                        WithName<SS("int_field"), Int<10, std::int32_t>>,
+                        WithName<SS("string"), String<10>>,
+                        WithName<SS("string"), Object<
+                            WithName<SS("boolean_field"), Bool>,
+                            WithName<SS("int_field"), Int<10, std::int32_t>>,
+                            WithName<SS("string"), String<10>>
+                        >>
+                    >
+                    >
+                > ,
+                WithName<SS("string"), String<10>>
+              >
+           ;
+    using Msg2Type =
+            Object<
+                WithName<SS("bf"), Bool>,
+                WithName<SS("obj"), Object<
+                    WithName<SS("arr"), Array<Bool, Bool, Bool>>,
+                    WithName<SS("boolean_field"), Bool>
+                >>,
+                WithName<SS("bool"), Bool>,
+                WithName<SS("obj_more"), Object<
+                    WithName<SS("int"), Int<10, std::int32_t>>,
+                    WithName<SS("float"), Double<10, float>>,
+                    WithName<SS("string"), String<10>>
+                >>
+              >
+           ;
+    Msg2Type obj;
+    obj.at<0>() = true;
+    Msg2Type obj2;
+    obj2.at<0>() = true;
+    cout << "obj == obj2: "<<( obj == obj2) << endl;
+    static constexpr char d[] = R"JS(   {
+               "bool"   :  true ,
+               "obj"  :  {
+                    "boolean_field" : true  ,
+                    "arr":  [false, true, false]
+               },
+               "obj_more": {
+                    "int": 1234,
+                    "string":   "fuumuuuu",
+                    "float":3.14
+               },
+               "bf":false}
+          )JS";
+    Msg2Type checker;
+    checker.at<0>() = false;
+    checker.at<1>().at<0>().at<0>() = false;
+    checker.at<1>().at<0>().at<1>() = true;
+    checker.at<1>().at<0>().at<2>() = false;
+    checker.at<1>().at<1>() = true;
+    checker.at<2>() = true;
+    checker.at<3>().at<0>() = 1234;
+    checker.at<3>().at<1>() = 3.14;
+    checker.at<3>().at<2>() = "fuumuuuu";
 
+    class Iter {
+        const char *m_d = 0;
+        std::size_t m_size = 0;
+        std::size_t pos = 0;
+    public:
 
-    measureFastSer();
-     measureSlowSer();
+        Iter(const char *d, std::size_t size, std::size_t offs = 0):m_d(d), m_size(size), pos(offs) {
 
+        }
+        void operator++() {
+            pos++;
+        }
+        Iter& operator+=(std::size_t offs) {
+            pos+=offs;
+            return *this;
+        }
+        const char & operator*() {
+            cout << "Read at " << pos << endl;
+            return *( m_d + pos);
+        }
+        bool operator==(Iter other) {return other.m_d==d&&other.pos == pos;}
+        bool operator!=(Iter other) {return other.m_d!=d||other.pos != pos;}
+    };
+    auto bg = Iter(d, sizeof (d)-1);
+    auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
+    if(auto it = obj.Deserialise(bg, end); it == end) {
+        cout << "Deser success" << endl;
+    } else {
+        cout << "Deser error";
+    }
 
-
-
-
-
+    if(obj == checker) {
+        cout << "Deser correct" << endl;;
+    } else {
+        cout << "Deser INCORRECT" << endl;;
+    }
     return 0;
 }
