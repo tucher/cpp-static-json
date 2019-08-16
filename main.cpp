@@ -490,14 +490,7 @@ class Object {
     constexpr static size_t MinKeyL = StaticMin(Members::Name::Size...);
     constexpr static size_t MaxKeyL = StaticMax(Members::Name::Size...);
 
-    static_assert (IsInList(1, 1, 2, 3, 4), "IsInList");
 
-    constexpr static bool finder() {
-
-
-        return true;
-    }
-    constexpr static bool map = finder();
 public:
 
     static constexpr std::size_t  Length = sizeof... (Members);
@@ -691,25 +684,36 @@ using to_sort = std::tuple<
                 C<5>,
                 C<4>,
                 C<8>,
-                C<2>
+                C<4>,
+                C<5>,
+                C<2>,
+                C<8>
 >;
 
-using tttt = MinRestExtractor<to_sort>;
-//static_assert(is_same_v<tttt::Min, integral_constant<int, 4>>, "dddd");
-//static_assert(is_same_v<tttt::Rest,  std::tuple<integral_constant<int, 5>>>, "dddd");
 
 using sorted_t = sorted_tuple_t<to_sort>;
 static_assert(is_same_v<sorted_t,  std::tuple<
               C<2>,
               C<4>,
+              C<4>,
               C<5>,
+              C<5>,
+              C<8>,
               C<8>
-              >>, "dddd");
+              >>, "Sorted not works");
+
+using uniques = unique_only_getter_t<to_sort>;
+
+static_assert(std::tuple_size_v<uniques> == 4);
+static_assert(is_same_v<uniques,  std::tuple<
+              C<8>,
+              C<5>,
+              C<4>,
+              C<2>
+              >>, "Distinct fail");
 
 int main()
 {
-//    constexpr auto sorted = MergeSort(make_tuple(1, 3, 2));
-
     BoolLike boolObj = false;
 
     BaseBool<BoolLike> jsonBool(boolObj);

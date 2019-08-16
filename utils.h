@@ -2,6 +2,9 @@
 #define UTILS_H
 #include <tuple>
 
+
+/////////////TUPLE ITERATION/////////////
+
 template<class F, class...Ts, std::size_t...Is>
 void iterateTuple(std::tuple<Ts...> & tuple, F && func, std::index_sequence<Is...>){
     using expander = int[];
@@ -14,59 +17,15 @@ void iterateTuple(std::tuple<Ts...> & tuple, F && func){
 }
 
 
-template <class T, class ...OtherT>
-static constexpr bool IsInList(const T & f, const OtherT & ... others) {
-    return (false || ... || (f==others));
-}
-
-template <std::size_t ... Is, class ...T>
-static constexpr auto SplitTupleIn2_h1(std::tuple<T...> tuple, std::index_sequence<Is...>) {
-    constexpr bool odd = (sizeof... (T)) % 2 != 0;
-    constexpr std::size_t N_2 = (sizeof... (T)) / 2;
-    if constexpr(!odd)
-        return std::make_pair(std::make_tuple(std::get<Is>(tuple)...), std::make_tuple(std::get<Is+N_2>(tuple)...));
-    else
-        return std::make_pair(std::make_tuple(std::get<0>(tuple), std::get<Is+1>(tuple)...), std::make_tuple(std::get<Is+N_2+1>(tuple)...));
-}
-
-
-template <class ...T>
-static constexpr auto SplitTupleIn2(std::tuple<T...> tuple) {
-    return SplitTupleIn2_h1(tuple, std::make_index_sequence<sizeof... (T)/2>());
-}
-
-template <typename ...TupleLeftTypes, typename ...TupleRightTypes>
-static constexpr auto MergeSortedLists(std::tuple<TupleLeftTypes...> tupleLeft, std::tuple<TupleRightTypes...> tupleRight) {
-    if constexpr (sizeof... (TupleLeftTypes) == 0) {
-        return tupleRight;
-    } else if constexpr(sizeof... (TupleRightTypes) == 0) {
-        return tupleLeft;
-    }
-    return std::make_tuple(true);
-}
-
-//template <typename ...TupleRightTypes>
-//static constexpr auto MergeSortedLists(std::tuple<> tupleLeft, std::tuple<TupleRightTypes...> tupleRight) {
-//    return tupleRight;
-//}
-
-//template <typename ...TupleLeftTypes>
-//static constexpr auto MergeSortedLists(std::tuple<TupleLeftTypes...> tupleLeft, std::tuple<> tupleRight) {
-//    return tupleLeft;
-//}
-
+/////////////FIND TYPE INDEX IN TUPLE//////
 
 template<std::size_t CurrIndex, class T, class TupleT, typename TTT=void >
 struct tuple_first_type_index;
 
-// recursive case
 template<std::size_t CurrIndex, class T,  class Head, class... Tail>
 struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enable_if_t<!std::is_same_v<Head, T>>>
-    : tuple_first_type_index<CurrIndex+1, T, std::tuple<Tail...>> {
+    : tuple_first_type_index<CurrIndex+1, T, std::tuple<Tail...>> {};
 
-};
-
-// base case
 template<std::size_t CurrIndex, class T,  class Head, class... Tail >
 struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enable_if_t<std::is_same_v<Head, T>>> {
     static constexpr std::size_t value = CurrIndex;
@@ -75,29 +34,16 @@ struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enab
 template <class T, class TupleT>
 constexpr std::size_t tuple_first_type_index_v = tuple_first_type_index<0, T, TupleT>::value;
 
-//template <class ...T>
-//static constexpr auto MergeSort(std::tuple<T...> tuple) {
-//    static_assert (sizeof... (T), "Cannot sort empty tuple");
-//    if constexpr(sizeof... (T) == 1) return tuple;
-//    else {
 
-//        auto [left, right] = SplitTupleIn2(tuple);
-//        return MergeSortedLists(MergeSort(left), MergeSort(right));
+/////////////EXTRACT TYPES SUBTUPLE FROM TUPLE////////////
 
-//    }
-
-
-//}
 template<std::size_t FromI, std::size_t ToI, class TupleT, class Sequence, typename TTT=void >
-struct tuple_types_interval;
+struct tuple_types_interval {};
 
 template<std::size_t FromI, std::size_t ToI, class TupleT, std::size_t ...Is>
 struct tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is...>, std::enable_if_t<sizeof... (Is) < ToI-FromI>>
-    : tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is..., FromI+sizeof... (Is)>> {
+    : tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is..., FromI+sizeof... (Is)>> {};
 
-};
-
-// base case
 template<std::size_t FromI, std::size_t ToI, class TupleT, std::size_t ...Is>
 struct tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is...>, std::enable_if_t<sizeof... (Is) == ToI-FromI>> {
     using type = std::tuple<std::tuple_element_t<Is,TupleT >...>;
@@ -106,8 +52,8 @@ struct tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is...>, std:
 template<std::size_t FromI, std::size_t ToI, class TupleT>
 using tuple_types_interval_t= typename tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<>>::type;
 
-template<std::size_t Index, class TupleT>
-struct tuple_type_extracter;
+
+/////////////CONCAT TUPLES/////////////
 
 template<typename ... input_t>
 using tuple_cat_t=
@@ -116,31 +62,24 @@ decltype(std::tuple_cat(
 ));
 
 
+/////////////TAKE TYPE FROM TUPLE BY INDEX
+
+template<std::size_t Index, class TupleT>
+struct tuple_type_extracter {};
+
 template<std::size_t Index, class ...TupleTypes>
 struct tuple_type_extracter<Index, std::tuple<TupleTypes...>> {
     using Tpl = std::tuple<TupleTypes...>;
     using ExtractedT = std::tuple_element_t<Index, Tpl>;
     using RestT = tuple_cat_t<tuple_types_interval_t<0, Index, Tpl>, tuple_types_interval_t<Index+1, sizeof... (TupleTypes), Tpl>>;
-
-//    std::tuple<std::tuple_element_t<0, std::tuple<TupleTypes...>>, std::tuple_element_t<Index+1, std::tuple<TupleTypes...>>>;
 };
 
 
-template <class T>
-static constexpr auto StaticMin(const T & v) {
-    return v;
-}
-
-template <class FirstT, class SecondT, class ...OtherT>
-static constexpr auto StaticMin(const FirstT & f, const SecondT & s, const OtherT & ... others) {
-    if(f < s) return StaticMin(f, others...);
-    return StaticMin(s, others...);
-}
+/////////////FIND MINUMUM TYPE by ::value MEMBER IN TUPLE
 
 template<class ElemsTuple, typename TTT = void>
 struct min_finder {};
 
-// base case
 template<class Elem>
 struct min_finder<std::tuple<Elem>> {
     using type = Elem;
@@ -149,22 +88,21 @@ struct min_finder<std::tuple<Elem>> {
 
 template<class ElemFirst, class ElemSecond, class ... ElemsRest>
 struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value < ElemSecond::value>>:
-        min_finder<std::tuple<ElemFirst, ElemsRest...>>
-{
-};
+        min_finder<std::tuple<ElemFirst, ElemsRest...>> {};
 
 template<class ElemFirst, class ElemSecond, class ... ElemsRest>
 struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value >= ElemSecond::value>>:
-        min_finder<std::tuple<ElemSecond, ElemsRest...>>
-{
-};
+        min_finder<std::tuple<ElemSecond, ElemsRest...>> {};
+
+
 template<class Tuple>
 using min_finder_t =  typename min_finder<Tuple>::type;
 
-template<class TupleT, class TupleSorted,  typename TTT=void >
-struct sorter{
 
-};
+/////////////SORT TYPES TUPLE ASCENDING BY ::value MEMBER
+
+template<class TupleT, class TupleSorted,  typename TTT=void >
+struct sorter {};
 
 template <class TupleT>
 struct MinRestExtractor{
@@ -174,18 +112,54 @@ struct MinRestExtractor{
 
 template<class TupleT, class ...Sorted>
 struct sorter<TupleT,  std::tuple<Sorted...>, std::enable_if_t<0<std::tuple_size_v<TupleT>>>
-    : sorter<typename MinRestExtractor<TupleT>::Rest, std::tuple<Sorted..., typename MinRestExtractor<TupleT>::Min>> {
+    : sorter<typename MinRestExtractor<TupleT>::Rest, std::tuple<Sorted..., typename MinRestExtractor<TupleT>::Min>> {};
 
-};
-
-// base case
 template<class TupleT, class ...Sorted>
-struct sorter<TupleT, std::tuple<Sorted...>, std::enable_if_t<0 == std::tuple_size_v<TupleT>>>
-{
+struct sorter<TupleT, std::tuple<Sorted...>, std::enable_if_t<0 == std::tuple_size_v<TupleT>>> {
     using type = std::tuple<Sorted...>;
 };
 
 template<class TupleT>
 using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
 
+
+/////////////REMOVE DUPLICATES IN SORTED TUPLE
+
+
+template<class SortedTupleT, class DupsFreeTupleT,  typename TTT=void >
+struct unique_only_getter {};
+
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<>,
+        std::enable_if_t < 0 < sizeof... (SortedTupleOtherTs)  >>
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT>> {};
+
+
+template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs>
+struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
+        std::enable_if_t < !std::is_same_v<SortedTupleHeadT, DupsFreeHeadT > > > {
+    using type = std::tuple<SortedTupleHeadT, DupsFreeHeadT, DupsFreeTs...>;
+};
+
+template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs>
+struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
+        std::enable_if_t < std::is_same_v<SortedTupleHeadT, DupsFreeHeadT > > > {
+    using type = std::tuple<DupsFreeHeadT, DupsFreeTs...>;
+};
+
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
+        std::enable_if_t < !std::is_same_v<SortedTupleHeadT, DupsFreeHeadT > >>
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT, DupsFreeHeadT, DupsFreeTs...>> {};
+
+
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
+        std::enable_if_t < std::is_same_v<SortedTupleHeadT,  DupsFreeHeadT> >>
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<DupsFreeHeadT, DupsFreeTs...> > {};
+
+
+
+template<class TupleT>
+using unique_only_getter_t = typename unique_only_getter<sorted_tuple_t<TupleT>, std::tuple<>>::type;
 #endif // UTILS_H
