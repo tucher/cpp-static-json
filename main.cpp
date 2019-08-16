@@ -1,10 +1,11 @@
 #include <iostream>
 #include <tuple>
 #include "../comadapterdriver/utils/static_string.h"
-#include "../comadapterdriver/utils/utils.h"
+#include "utils.h"
 #include <cstdio>
 #include  <cctype>
 #include <cstdlib>
+#include <array>
 using namespace std;
 
 namespace  StaticJSON {
@@ -484,6 +485,19 @@ class Object {
         bool valsCorrect =  (true && ... && (std::get<Is>(other.m_members).member == std::get<Is>(m_members).member));
         return namesCorrect && valsCorrect;
     }
+
+
+    constexpr static size_t MinKeyL = StaticMin(Members::Name::Size...);
+    constexpr static size_t MaxKeyL = StaticMax(Members::Name::Size...);
+
+    static_assert (IsInList(1, 1, 2, 3, 4), "IsInList");
+
+    constexpr static bool finder() {
+
+
+        return true;
+    }
+    constexpr static bool map = finder();
 public:
 
     static constexpr std::size_t  Length = sizeof... (Members);
@@ -657,8 +671,23 @@ void measureSlowSer() {
     std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
 }
 
+static_assert (tuple_first_type_index_v<SS("34"), std::tuple<SS("123"), SS("54") , SS("34")>> == 2, "works");
+
+using extr_test = tuple_type_extracter<2, std::tuple<int, float, char>>;
+static_assert(is_same_v<extr_test::ExtractedT, char>, "dddd");
+static_assert(is_same_v<extr_test::RestT, std::tuple<int, float>>, "dddd");
+
+
+static_assert(is_same_v<std::tuple<float>, tuple_types_interval_t<1,2,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(is_same_v<std::tuple<float, char>, tuple_types_interval_t<1,3,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(is_same_v<std::tuple<float, char, bool>, tuple_types_interval_t<1,4,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(is_same_v<std::tuple<int, float>, tuple_types_interval_t<0,2,  std::tuple<int, float, char, bool>>>, "dddd");
+
+
 int main()
 {
+//    constexpr auto sorted = MergeSort(make_tuple(1, 3, 2));
+
     BoolLike boolObj = false;
 
     BaseBool<BoolLike> jsonBool(boolObj);

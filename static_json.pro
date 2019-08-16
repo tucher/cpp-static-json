@@ -6,3 +6,6 @@ CONFIG -= qt
 SOURCES += \
         main.cpp
 CONFIG += force_debug_info
+
+HEADERS += \
+    utils.h
