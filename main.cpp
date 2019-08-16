@@ -683,6 +683,28 @@ static_assert(is_same_v<std::tuple<float, char>, tuple_types_interval_t<1,3,  st
 static_assert(is_same_v<std::tuple<float, char, bool>, tuple_types_interval_t<1,4,  std::tuple<int, float, char, bool>>>, "dddd");
 static_assert(is_same_v<std::tuple<int, float>, tuple_types_interval_t<0,2,  std::tuple<int, float, char, bool>>>, "dddd");
 
+static_assert(min_finder<std::tuple<integral_constant<int, 5>, integral_constant<int, 4>, integral_constant<int, 8>>>::value == 4, "dddd");
+
+template<int V>
+using C = integral_constant<int, V>;
+using to_sort = std::tuple<
+                C<5>,
+                C<4>,
+                C<8>,
+                C<2>
+>;
+
+using tttt = MinRestExtractor<to_sort>;
+//static_assert(is_same_v<tttt::Min, integral_constant<int, 4>>, "dddd");
+//static_assert(is_same_v<tttt::Rest,  std::tuple<integral_constant<int, 5>>>, "dddd");
+
+using sorted_t = sorted_tuple_t<to_sort>;
+static_assert(is_same_v<sorted_t,  std::tuple<
+              C<2>,
+              C<4>,
+              C<5>,
+              C<8>
+              >>, "dddd");
 
 int main()
 {

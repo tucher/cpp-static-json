@@ -125,4 +125,67 @@ struct tuple_type_extracter<Index, std::tuple<TupleTypes...>> {
 //    std::tuple<std::tuple_element_t<0, std::tuple<TupleTypes...>>, std::tuple_element_t<Index+1, std::tuple<TupleTypes...>>>;
 };
 
+
+template <class T>
+static constexpr auto StaticMin(const T & v) {
+    return v;
+}
+
+template <class FirstT, class SecondT, class ...OtherT>
+static constexpr auto StaticMin(const FirstT & f, const SecondT & s, const OtherT & ... others) {
+    if(f < s) return StaticMin(f, others...);
+    return StaticMin(s, others...);
+}
+
+template<class ElemsTuple, typename TTT = void>
+struct min_finder {};
+
+// base case
+template<class Elem>
+struct min_finder<std::tuple<Elem>> {
+    using type = Elem;
+    static constexpr auto value = Elem::value;
+};
+
+template<class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value < ElemSecond::value>>:
+        min_finder<std::tuple<ElemFirst, ElemsRest...>>
+{
+};
+
+template<class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value >= ElemSecond::value>>:
+        min_finder<std::tuple<ElemSecond, ElemsRest...>>
+{
+};
+template<class Tuple>
+using min_finder_t =  typename min_finder<Tuple>::type;
+
+template<class TupleT, class TupleSorted,  typename TTT=void >
+struct sorter{
+
+};
+
+template <class TupleT>
+struct MinRestExtractor{
+    using Min = min_finder_t<TupleT>;
+    using Rest = typename tuple_type_extracter<tuple_first_type_index_v<Min, TupleT>, TupleT>::RestT;
+};
+
+template<class TupleT, class ...Sorted>
+struct sorter<TupleT,  std::tuple<Sorted...>, std::enable_if_t<0<std::tuple_size_v<TupleT>>>
+    : sorter<typename MinRestExtractor<TupleT>::Rest, std::tuple<Sorted..., typename MinRestExtractor<TupleT>::Min>> {
+
+};
+
+// base case
+template<class TupleT, class ...Sorted>
+struct sorter<TupleT, std::tuple<Sorted...>, std::enable_if_t<0 == std::tuple_size_v<TupleT>>>
+{
+    using type = std::tuple<Sorted...>;
+};
+
+template<class TupleT>
+using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
+
 #endif // UTILS_H
