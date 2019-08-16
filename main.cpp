@@ -712,6 +712,65 @@ static_assert(is_same_v<uniques,  std::tuple<
               C<2>
               >>, "Distinct fail");
 
+using filtered = by_value_filterer_t<int, 4, to_sort>;
+static_assert(std::tuple_size_v<filtered> == 2);
+static_assert(is_same_v<filtered,  std::tuple<
+              C<4>,
+              C<4>
+              >>, "Filter fail");
+
+
+using strings = std::tuple <
+    SS("aab"),
+    SS("aac"),
+    SS("b")
+>;
+
+using trie = trie_t<strings>;
+
+static_assert (trie::MaxL==3);
+using Layer0 = trie::Layer0;
+static_assert (std::tuple_size_v<Layer0::groups>  ==2);
+using Gr0 =  std::tuple_element_t<0, Layer0::groups>;
+static_assert (std::tuple_size_v<Gr0>  ==1);
+static_assert (std::is_same_v<typename std::tuple_element_t<0,Gr0>::SST,  SS("b") >);
+
+using Gr1 =  std::tuple_element_t<1, Layer0::groups>;
+static_assert (std::tuple_size_v<Gr1>  ==2);
+static_assert (std::is_same_v<typename std::tuple_element_t<0,Gr1>::SST,  SS("aab") >);
+static_assert (std::is_same_v<typename std::tuple_element_t<1,Gr1>::SST,  SS("aac") >);
+
+
+static_assert (std::tuple_size_v<trie::Layer10::groups>  ==1);
+static_assert (std::tuple_size_v<trie::Layer11::groups>  ==1);
+
+static_assert (std::tuple_size_v<trie::Layer0::childLayers>  ==2);
+
+using layer00 =  std::tuple_element_t<0, Layer0::childLayers>;
+static_assert (std::tuple_size_v<layer00::keys>  ==1);
+static_assert (std::tuple_element_t<0, layer00::keys>::value == 'b');
+
+
+using layer000 = std::tuple_element_t<0, layer00::childLayers>;
+static_assert (std::tuple_size_v<layer000::keys>  ==1);
+static_assert (std::tuple_element_t<0, layer000::keys>::value == 'b');
+
+using layer0000 = std::tuple_element_t<0, layer000::childLayers>;
+static_assert (std::tuple_size_v<layer0000::keys>  ==1);
+
+
+using layer01 =  std::tuple_element_t<1, Layer0::childLayers>;
+static_assert (std::tuple_size_v<layer01::keys>  ==1);
+
+using layer010 =  std::tuple_element_t<0, layer01::childLayers>;
+static_assert (std::tuple_size_v<layer010::keys>  ==1);
+
+using layer0100 =  std::tuple_element_t<0, layer010::childLayers>;
+static_assert (std::tuple_size_v<layer0100::keys>  ==1);
+
+using layer01000 =  std::tuple_element_t<0, layer0100::childLayers>;
+static_assert (std::tuple_size_v<layer01000::keys>  ==1);
+
 int main()
 {
     BoolLike boolObj = false;
