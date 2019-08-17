@@ -10,6 +10,7 @@ CONFIG += force_debug_info
 
 HEADERS += \
     static_json.hpp \
+    template_utils.hpp \
     trie.hpp \
     utils.h
 

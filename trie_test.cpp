@@ -1,6 +1,6 @@
 #include "trie.hpp"
 #include "../comadapterdriver/utils/static_string.h"
-
+#include "utils.h"
 #include <iostream>
 
 using namespace std;
@@ -84,13 +84,19 @@ using strings2 = std::tuple <
     SS("b")
 >;
 
-using trie = trie_t<strings>;
+using trie = StaticTrie::trie_t<strings>;
 void test_trie() {
 
-    char string[] = "rub";
+    char d[] = "rub";
+
+
+    auto bg = Iter(d, sizeof (d)-1);
+    auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
+
+
     bool found = false;
-    char * iter = string;
-    char *end = string + sizeof (string) - 1;
+//    char * iter = string;
+//    char *end = string + sizeof (string) - 1;
     auto clb = [&](std::size_t index, auto curIter, auto endIter, auto mathedStrTuple, auto nodeString, bool isEndNode) -> bool {
         using NodeString = decltype (nodeString);
         if (false && isEndNode) {
@@ -123,6 +129,6 @@ void test_trie() {
         cout << endl;
         return !found;
     };
-    char * endedAt = trie::search(iter, end, clb);
-    cout << "Search ended at " << endedAt -string << endl;
+    Iter endedAt = trie::search(bg, end, clb);
+    cout << "Search ended at " << endedAt -bg << endl;
 }

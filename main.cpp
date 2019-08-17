@@ -1,5 +1,6 @@
 #include <iostream>
 #include "static_json.hpp"
+#include "utils.h"
 
 using namespace StaticJSON;
 
@@ -170,29 +171,7 @@ int main() {
     checker.at<3>().at<1>() = 3.14;
     checker.at<3>().at<2>() = "fuumuuuu";
 
-    class Iter {
-        const char *m_d = 0;
-        std::size_t m_size = 0;
-        std::size_t pos = 0;
-    public:
 
-        Iter(const char *d, std::size_t size, std::size_t offs = 0):m_d(d), m_size(size), pos(offs) {
-            (void)m_size;
-        }
-        void operator++() {
-            pos++;
-        }
-        Iter& operator+=(std::size_t offs) {
-            pos+=offs;
-            return *this;
-        }
-        const char & operator*() {
-            cout << "Read at " << pos << endl;
-            return *( m_d + pos);
-        }
-        bool operator==(Iter other) {return other.m_d==d&&other.pos == pos;}
-        bool operator!=(Iter other) {return other.m_d!=d||other.pos != pos;}
-    };
     auto bg = Iter(d, sizeof (d)-1);
     auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
     if(auto it = obj.Deserialise(bg, end); it == end) {

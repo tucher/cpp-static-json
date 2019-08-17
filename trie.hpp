@@ -1,9 +1,9 @@
 #ifndef TRIE_HPP
 #define TRIE_HPP
 
-#include "utils.h"
+#include "template_utils.hpp"
 
-/////////////TRIE COMPOSITION
+namespace StaticTrie {
 
 
 template <std::size_t I, typename  SString, typename TTT=void >
@@ -91,14 +91,6 @@ struct concrete_keys_extractor<std::tuple<StringWithKeyT...>> {
 //TODO skip equal Layers!!
 
 
-//TODO it still doesnt work for situation like:
-/*
-using strings3 = std::tuple <
-    SS("a"), //node and parent at the same time!
-    SS("an")
->;
-*/
-
 template <typename InputTuple>
 struct member_extractor{};
 
@@ -111,53 +103,49 @@ template <class T> using member_extractor_t = typename member_extractor<T>::type
 template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
 struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
         std::enable_if_t< (sizeof...(StringWithKeyT) > 1 && I < max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >{
+        >
+{
+
     using ThisStrings = member_extractor_t<sorted_tuple_t  <
             std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>
         >>;
+    using NodeString = typename std::tuple_element_t<0, ThisStrings>;
+    static constexpr bool End = I >= NodeString::Size;
+
+private:
     static constexpr auto MinLength = min_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>;
 
     using StringEndedHere = by_value_filterer_t<std::size_t, MinLength ,std::tuple<SSMaxW<typename StringWithKeyT::SST> ...> >;
-
-    using NodeString = typename std::tuple_element_t<0, ThisStrings>;
-
-
-    static constexpr bool End = I >= NodeString::Size;
-
-
-
     static constexpr std::size_t DepthLevel = I;
     using SourceStrings = std::tuple<SString...>;
-
-
     using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
-
     using keys = unique_only_getter_t< KeyedStrings>;
-
     static constexpr auto KeyChars = concrete_keys_extractor<keys>::Keys;
-
     using groups = typename group_splitter<keys,
                                                 KeyedStrings
                                           >::type;
-    using childLayers = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
+public:
+    using NextNodes = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
 };
 
 template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
 struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
         std::enable_if_t< (sizeof...(StringWithKeyT) == 1 || I == max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >{
+        >
+{
+    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
+    using NodeString = std::tuple_element_t<0, ThisStrings>;
+
+private:
     static constexpr std::size_t DepthLevel = I;
     using SourceStrings = std::tuple<SString...>;
-     using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
+    using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
     using keys = unique_only_getter_t< KeyedStrings>;
-    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
-
     static constexpr auto KeyChars = concrete_keys_extractor<keys>::Keys;
-
+    static_assert (sizeof... (StringWithKeyT) == 1, "Trie error: looks like there are identical strings in source tuple");
+public:
+    using NextNodes = std::tuple<>;
     static constexpr bool End = true;
-    using childLayers = std::tuple<>;
-    static_assert (sizeof... (StringWithKeyT) == 1, "Trie error, looks like there is identical strings in source tuple");
-    using NodeString = std::tuple_element_t<0, ThisStrings>;
 };
 
 template <typename StringsTuple, typename Output>
@@ -183,49 +171,42 @@ struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
                 }
             }
 //            cout    << endl;
-            iterateTuple(typename LT::childLayers(), self, self);
+            iterateTuple(typename LT::NextNodes(), self, self);
         };
 
-        iterateTuple(L::childLayers(), iterator, iterator);
+        iterateTuple(L::NextNodes(), iterator, iterator);
     }
-
 
     template<class Iter, class Clb>
     static Iter search (Iter iter, Iter end, Clb clb ) {
         bool to_continue = true;
         std::size_t index = 0;
-        auto searcher= [&index, &iter, &end, &clb, &to_continue]( auto & layer, const auto & self) -> void{
-            if(!to_continue || iter == end) return;
+        char symbol = *iter;
+        auto searcher= [& symbol, &index, &iter, &end, &clb, &to_continue]( auto & layer, const auto & self) -> void{
+            if(!to_continue) return;
             using Item =  std::remove_reference_t<decltype (layer)>;
             using LT = typename Item::Layer;
             constexpr char key = Item::Key;
 
-
-            if(key == *iter) {
+            if(key == symbol) {
                 to_continue = clb(index, iter, end, typename LT::ThisStrings(), typename LT::NodeString(), LT::End);
                 if(to_continue) {
-                    iter++;
-                    index ++;
-                    //                cout << "Going into node with strings: " << endl;
-                    //                iterateTuple(typename LT::ThisStrings(), [](auto &s){
-                    //                    cout << "\t " << s.to_str() << endl;
-                    //                });
-                    iterateTuple(typename LT::childLayers(), self, self);
+                    ++iter;
+                    ++index;
+                    symbol = * iter;
+                    if (iter == end) to_continue = false;
+                    iterateTuple(typename LT::NextNodes(), self, self);
                 }
             }
-        };
 
-//        while(iter != end && to_continue) {
-            iterateTuple(typename L::childLayers(), searcher, searcher);
-//            if(iter == end) break;
-//            iter ++;
-//            index ++;
-//        }
+
+        };
+        iterateTuple(typename L::NextNodes(), searcher, searcher);
         return iter;
     }
 };
 
 template<class StringsTuple>
 using trie_t = trie_builder<StringsTuple, std::tuple<>>;
-
+};
 #endif // TRIE_HPP
