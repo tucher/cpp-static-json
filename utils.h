@@ -1,7 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 #include <tuple>
-
+#include <array>
 
 /////////////TUPLE ITERATION/////////////
 
@@ -16,6 +16,16 @@ void iterateTuple(std::tuple<Ts...> & tuple, F && func){
     iterateTuple(tuple, std::move(func), std::make_index_sequence<sizeof...(Ts)>());
 }
 
+template<class F, class...Ts, std::size_t...Is, class ...Args>
+void iterateTuple(const std::tuple<Ts...> & tuple, F && func, std::index_sequence<Is...>, Args...args){
+    using expander = int[];
+    (void)expander { 0, ((void)func(std::get<Is>(tuple), args...), 0)... };
+}
+
+template<class F, class...Ts, class ...Args>
+void iterateTuple(const std::tuple<Ts...> & tuple, F && func, Args...args){
+    iterateTuple(tuple, std::move(func), std::make_index_sequence<sizeof...(Ts)>(), args...);
+}
 
 /////////////FIND TYPE INDEX IN TUPLE//////
 
@@ -96,6 +106,8 @@ struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_i
 
 template<class Tuple>
 using min_finder_t =  typename min_finder<Tuple>::type;
+template<class Tuple>
+static constexpr auto min_finder_v =  min_finder<Tuple>::value;
 /////////////FIND MAXIMUM TYPE by ::value MEMBER IN TUPLE
 
 template<class ElemsTuple, typename TTT = void>
@@ -195,7 +207,7 @@ template<class TupleT>
 using unique_only_getter_t = typename unique_only_getter<sorted_tuple_t<TupleT>, std::tuple<>>::type;
 
 
-/////////////FILTER TYPES WITH equel ::value to given
+/////////////FILTER TYPES WITH equal ::value to given
 
 //add condition function option
 template<class ValT, ValT val, class InputTuple, class ResultT, typename TTT=void >
@@ -266,108 +278,9 @@ static constexpr auto StaticMax(const FirstT & f, const SecondT & s, const Other
 
 
 template <class ...OtherT>
-static constexpr auto StaticMax(const std::tuple<OtherT...> args) {
+static constexpr auto StaticMax(const std::tuple<OtherT...> /*args*/) {
   return StaticMax(OtherT()...);
 }
 
-/////////////TRIE COMPOSITION
 
-
-template <std::size_t I, typename  SString, typename TTT=void >
-struct ss_char_getter{};
-
-template <std::size_t I, typename  SString>
-struct ss_char_getter<I, SString, std::enable_if_t<I < SString::Size> >{
-    static constexpr auto value = SString::template get<I>();
-};
-
-template <std::size_t I, typename  SString>
-struct ss_char_getter<I, SString, std::enable_if_t<I >= SString::Size> >{
-    static constexpr auto value = char(0);
-};
-
-template <std::size_t I, typename  SString>
-constexpr auto ss_char_getter_v = ss_char_getter<I, SString>::value;
-
-template<std::size_t I, typename SString>
-struct StringWithKey{
-    static constexpr auto Index = I;
-    using SST = SString;
-    static constexpr char value = ss_char_getter_v<Index, SST>;
-};
-
-template <char Cv, typename SString>
-using string_with_key = std::integral_constant<char, Cv>;
-
-
-template <typename KeyTuple, typename DataTuple>
-struct group_splitter{};
-
-
-template <class ...StringWithKey, typename ...SStringsWithKey>
-struct group_splitter<std::tuple<StringWithKey...>,  std::tuple<SStringsWithKey...> >{
-    using type = std::tuple<by_value_filterer_t<char, StringWithKey::value, std::tuple<SStringsWithKey...> >...>;
-};
-
-template <std::size_t I, typename Source, typename LGroup>
-struct LayerSplitter{};
-
-
-
-template <std::size_t I, typename StringsTuple, typename StringsWithKeysTuple, typename TTT=void >
-struct TrieLayer{};
-
-template < std::size_t I, typename ...SString, typename ...LayerKeyedStringTuples>
-struct LayerSplitter<I, std::tuple<SString...>, std::tuple<LayerKeyedStringTuples...>>{
-    using type = std::tuple<TrieLayer<I, std::tuple<SString...>, LayerKeyedStringTuples>...>;
-};
-
-template <typename SS>struct SSMaxW{static constexpr auto value = SS::Size;};
-
-
-template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
-struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
-        std::enable_if_t< (I < max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >{
-    static constexpr bool End = false;
-
-    static constexpr std::size_t DepthLevel = I;
-    using SourceStrings = std::tuple<SString...>;
-    using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
-
-    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
-    using keys = unique_only_getter_t< KeyedStrings>;
-
-    using groups = typename group_splitter<keys,
-                                                KeyedStrings
-                                          >::type;
-    using childLayers = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
-};
-
-template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
-struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
-        std::enable_if_t< (I == max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >{
-    static constexpr std::size_t DepthLevel = I;
-    using SourceStrings = std::tuple<SString...>;
-    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
-
-    static constexpr bool End = true;
-
-    static_assert (sizeof... (StringWithKeyT) == 1, "Trie error, looks like there is identical strings in source tuple");
-    using NodeString = std::tuple_element_t<0, ThisStrings>;
-};
-
-template <typename StringsTuple, typename Output>
-struct trie_builder {};
-
-template <typename ... Strings, typename ... OutputItems>
-struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
-{
-    static_assert(std::is_same_v<bool, bool>, "Duplicates in source string tuple are not allowed");
-    using Layer0 = TrieLayer<0, std::tuple<Strings...>, std::tuple<StringWithKey<0, Strings>...>>;
-};
-
-template<class StringsTuple>
-using trie_t = trie_builder<StringsTuple, std::tuple<>>;
 #endif // UTILS_H
