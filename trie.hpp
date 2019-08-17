@@ -110,7 +110,7 @@ struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
             std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>
         >>;
     using NodeString = typename std::tuple_element_t<0, ThisStrings>;
-    static constexpr bool End = I >= NodeString::Size;
+    static constexpr bool HasFullString = I >= NodeString::Size;
 
 private:
     static constexpr auto MinLength = min_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>;
@@ -126,6 +126,7 @@ private:
                                           >::type;
 public:
     using NextNodes = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
+    static constexpr bool Last = std::tuple_size_v<NextNodes> == 0;
 };
 
 template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
@@ -145,7 +146,8 @@ private:
     static_assert (sizeof... (StringWithKeyT) == 1, "Trie error: looks like there are identical strings in source tuple");
 public:
     using NextNodes = std::tuple<>;
-    static constexpr bool End = true;
+    static constexpr bool HasFullString = true;
+    static constexpr bool Last = true;
 };
 
 template <typename StringsTuple, typename Output>
@@ -163,7 +165,7 @@ struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
             using LT = typename std::remove_reference_t<decltype (layer)>::Layer;
 //            cout << "Index: " << LT::DepthLevel << " ";
 
-            if constexpr(LT::End) {
+            if constexpr(LT::HasFullString) {
 //                cout << "END: " << LT::NodeString::to_str();
             } else {
                 for(auto ch: LT::KeyChars) {
@@ -182,23 +184,25 @@ struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
         bool to_continue = true;
         std::size_t index = 0;
         char symbol = *iter;
-        auto searcher= [& symbol, &index, &iter, &end, &clb, &to_continue]( auto & layer, const auto & self) -> void{
-            if(!to_continue) return;
+        int counter = 0;
+        auto searcher= [&]( auto & layer, const auto & self) -> void{
             using Item =  std::remove_reference_t<decltype (layer)>;
             using LT = typename Item::Layer;
             constexpr char key = Item::Key;
 
-            if(key == symbol) {
-                to_continue = clb(index, iter, end, typename LT::ThisStrings(), typename LT::NodeString(), LT::End);
-                if(to_continue) {
-                    ++iter;
-                    ++index;
-                    symbol = * iter;
-                    if (iter == end) to_continue = false;
-                    iterateTuple(typename LT::NextNodes(), self, self);
-                }
+            if(!to_continue || key != symbol) return;
+
+            to_continue = clb(index, iter, end, typename LT::ThisStrings(), typename LT::NodeString(), LT::HasFullString, LT::Last);
+            to_continue = ! LT::Last;
+            if(to_continue) {
+                ++iter;
+                ++index;
+                symbol = * iter;
+                if (iter == end) to_continue = false;
+                iterateTuple(typename LT::NextNodes(), self, self);
             }
 
+            counter ++;
 
         };
         iterateTuple(typename L::NextNodes(), searcher, searcher);

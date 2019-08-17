@@ -64,10 +64,13 @@ static_assert(is_same_v<filtered,  std::tuple<
 using strings = std::tuple <
     SS("moscow"),
     SS("russia"),
+    SS("volumetric"),
     SS("russian"),
     SS("ruble"),
+    SS("volume"),
     SS("rude"),
     SS("rudiment"),
+    SS("voltage"),
     SS("vodka"),
     SS("voda"),
     SS("vodokanal")
@@ -84,51 +87,45 @@ using strings2 = std::tuple <
     SS("b")
 >;
 
-using trie = StaticTrie::trie_t<strings>;
-void test_trie() {
+int test_trie() {
 
-    char d[] = "rub";
-
+    char d[] = "fvolumetric";
 
     auto bg = Iter(d, sizeof (d)-1);
     auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
 
-
-    bool found = false;
-//    char * iter = string;
-//    char *end = string + sizeof (string) - 1;
-    auto clb = [&](std::size_t index, auto curIter, auto endIter, auto mathedStrTuple, auto nodeString, bool isEndNode) -> bool {
+    int result = -1;
+    auto clb = [&](std::size_t index, auto curIter,
+                                      auto endIter,
+                                      auto mathedStrTuple,
+                                      auto nodeString,
+                                      bool hasFulString,
+                                      bool isLastNodeInChain) -> bool {
         using NodeString = decltype (nodeString);
-        if (false && isEndNode) {
-            found = true;
-            if(curIter != endIter) {
-                std::size_t i = index + 1;
-                for(; i < NodeString::Size; i ++) {
-                    if(curIter == endIter) break;
-                    if(*curIter != NodeString::to_str()[i]) {
-                        found = false;
-                        break;
-                    }
-                    ++curIter;
 
-                }
-            }
-            if(found) {
-                cout << "FOUND:  " << NodeString::to_str()  << endl;
-            } else {
-                cout << "VERIFY ERR:  " << endl;
+        if(hasFulString) {
 
-            }
+//            cout << index << "Full Node string: " << nodeString.to_str() << endl;
 
         }
-        if(isEndNode)cout << "!!! Node string: " << nodeString.to_str() << endl;
-        cout << "Matched: " << endl;
-        iterateTuple(mathedStrTuple, [](auto &s){
-            cout << "\t " << s.to_str() << endl;
-        });
-        cout << endl;
-        return !found;
+        if(isLastNodeInChain) {
+//            cout << " Success at index " << index << "!!!: " << nodeString.to_str() << endl;
+            result = 0;
+            return false;
+        }
+//        cout << "Matched: " << endl;
+//        iterateTuple(mathedStrTuple, [](auto &s){
+//            cout << "\t " << s.to_str() << endl;
+//        });
+//        cout << endl;
+        return true;
     };
-    Iter endedAt = trie::search(bg, end, clb);
-    cout << "Search ended at " << endedAt -bg << endl;
+    using trie = StaticTrie::trie_t<strings>;
+
+
+    //Iter endedAt = trie::search(bg, end, clb);
+    //cout << "Search ended at " << endedAt -bg << endl;
+
+    trie::search(d, d + sizeof (d) - 1, clb);
+    return result;
 }

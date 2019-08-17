@@ -1,7 +1,7 @@
 #include <iostream>
 #include "static_json.hpp"
 #include "utils.h"
-
+#if 0
 using namespace StaticJSON;
 
 class BoolLike {
@@ -83,14 +83,14 @@ void measureSlowSer() {
     std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
 }
 
+#endif
 
-
-void test_trie();
+int test_trie();
 
 int main() {
-    test_trie();
-    return 0;
 
+    return test_trie();
+#if 0
     BoolLike boolObj = false;
 
     BaseBool<BoolLike> jsonBool(boolObj);
@@ -186,4 +186,5 @@ int main() {
         cout << "Deser INCORRECT" << endl;;
     }
     return 0;
+#endif
 }
