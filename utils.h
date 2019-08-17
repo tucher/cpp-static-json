@@ -150,6 +150,10 @@ using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
 template<class SortedTupleT, class DupsFreeTupleT,  typename TTT=void >
 struct unique_only_getter {};
 
+template<>
+struct unique_only_getter<std::tuple<>,  std::tuple<>>{
+    using type = std::tuple<>;
+};
 
 template<class SortedTupleHeadT>
 struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<>>{
@@ -261,6 +265,11 @@ static constexpr auto StaticMax(const FirstT & f, const SecondT & s, const Other
 }
 
 
+template <class ...OtherT>
+static constexpr auto StaticMax(const std::tuple<OtherT...> args) {
+  return StaticMax(OtherT()...);
+}
+
 /////////////TRIE COMPOSITION
 
 
@@ -300,21 +309,27 @@ struct group_splitter<std::tuple<StringWithKey...>,  std::tuple<SStringsWithKey.
     using type = std::tuple<by_value_filterer_t<char, StringWithKey::value, std::tuple<SStringsWithKey...> >...>;
 };
 
-template <std::size_t IMax, std::size_t I, typename Source, typename LGroup>
+template <std::size_t I, typename Source, typename LGroup>
 struct LayerSplitter{};
 
 
 
-template <std::size_t I, typename StringsTuple, typename StringsWithKeysTuple>
+template <std::size_t I, typename StringsTuple, typename StringsWithKeysTuple, typename TTT=void >
 struct TrieLayer{};
 
-template <std::size_t IMax, std::size_t I, typename ...SString, typename ...LayerKeyedStringTuples>
-struct LayerSplitter<IMax, I, std::tuple<SString...>, std::tuple<LayerKeyedStringTuples...>>{
+template < std::size_t I, typename ...SString, typename ...LayerKeyedStringTuples>
+struct LayerSplitter<I, std::tuple<SString...>, std::tuple<LayerKeyedStringTuples...>>{
     using type = std::tuple<TrieLayer<I, std::tuple<SString...>, LayerKeyedStringTuples>...>;
 };
 
+template <typename SS>struct SSMaxW{static constexpr auto value = SS::Size;};
+
+
 template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
-struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>>{
+struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
+        std::enable_if_t< (I < max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
+        >{
+    static constexpr std::size_t DepthLevel = I;
     using SourceStrings = std::tuple<SString...>;
     using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
     using keys = unique_only_getter_t< std::tuple<StringWithKeyT...>>;
@@ -322,7 +337,24 @@ struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>>{
     using groups = typename group_splitter<keys,
                                                 std::tuple<StringWithKey<I, SString>...>
                                           >::type;
-    using childLayers = typename LayerSplitter<0, I+1, std::tuple<SString...>, groups>::type;
+    using childLayers = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
+};
+
+template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
+struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
+        std::enable_if_t< (I == max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
+        >{
+    static constexpr std::size_t DepthLevel = I;
+
+    using SourceStrings = std::tuple<SString...>;
+    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
+    using keys = unique_only_getter_t< std::tuple<StringWithKeyT...>>;
+
+    using groups = std::tuple<>;
+    using childLayers = std::tuple<>;
+
+    static_assert (sizeof... (StringWithKeyT) == 1, "Trie error, looks like there is identical strings in source tuple");
+    using NodeString = std::tuple_element_t<0, ThisStrings>;
 };
 
 template <typename StringsTuple, typename Output>
@@ -331,7 +363,7 @@ struct trie_builder {};
 template <typename ... Strings, typename ... OutputItems>
 struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
 {
-
+    static_assert(std::is_same_v<bool, bool>, "Duplicates in source string tuple are not allowed");
     using Layer0 = TrieLayer<0, std::tuple<Strings...>, std::tuple<StringWithKey<0, Strings>...>>;
 
 };

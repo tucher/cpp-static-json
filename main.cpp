@@ -730,53 +730,68 @@ using trie = trie_t<strings>;
 
 
 using Layer0 = trie::Layer0;
-static_assert (std::tuple_size_v<Layer0::groups>  ==2);
-using Gr0 =  std::tuple_element_t<0, Layer0::groups>;
-static_assert (std::tuple_size_v<Gr0>  ==1);
-static_assert (std::is_same_v<typename std::tuple_element_t<0,Gr0>::SST,  SS("b") >);
+static_assert(Layer0::DepthLevel == 0);
+static_assert (std::tuple_size_v<Layer0::childLayers>  ==2);
 
-using Gr1 =  std::tuple_element_t<1, Layer0::groups>;
-static_assert (std::tuple_size_v<Gr1>  ==2);
-static_assert (std::is_same_v<typename std::tuple_element_t<0,Gr1>::SST,  SS("aab") >);
-static_assert (std::is_same_v<typename std::tuple_element_t<1,Gr1>::SST,  SS("aac") >);
-
-
-static_assert (std::tuple_size_v<trie::Layer0::childLayers>  ==2);
 
 using layer00 =  std::tuple_element_t<0, Layer0::childLayers>;
+static_assert(layer00::DepthLevel == 1);
+
 static_assert (std::tuple_size_v<layer00::keys>  ==1);
-
-
 static_assert (std::tuple_size_v<layer00::ThisStrings>  ==1);
 static_assert (std::is_same_v<
                                 std::tuple_element_t<0, layer00::ThisStrings>,
                             SS("b")
                             >);
+static_assert (std::tuple_size_v<layer00::childLayers>  ==0);
+static_assert (std::is_same_v<
+                                layer00::NodeString,
+                            SS("b")
+                            >);
 
-static_assert (std::tuple_size_v<layer00::childLayers>  ==1);
-using layer000 = std::tuple_element_t<0, layer00::childLayers>;
-//static_assert (std::tuple_size_v<layer000::childLayers>  ==1);
-//using layer0000 = std::tuple_element_t<0, layer000::childLayers>;
-//static_assert (std::tuple_size_v<layer000::childLayers>  ==1);
+static_assert (std::tuple_element_t<0, layer00::keys>::value == 'b');
 
-using layer000 = std::tuple_element_t<0, layer00::childLayers>;
-using layer000 = std::tuple_element_t<0, layer00::childLayers>;
+using layer01 =  std::tuple_element_t<1, Layer0::childLayers>;
+static_assert(layer01::DepthLevel == 1);
 
-//static_assert (std::is_same_v<
-//                                std::tuple_element_t<1, layer00::ThisStrings>,
-//                            SS("aac")
-//                            >);
+static_assert (std::tuple_size_v<layer01::childLayers>  ==1);
+static_assert (std::tuple_size_v<layer01::ThisStrings>  ==2);
 
-//using layer000 = std::tuple_element_t<0, layer00::childLayers>;
-//static_assert (std::tuple_size_v<layer000::keys>  ==1);
-//static_assert (std::tuple_element_t<0, layer000::keys>::value == 'b');
+static_assert (std::is_same_v<
+                                std::tuple_element_t<0, layer01::ThisStrings>,
+                            SS("aab")
+                            >);
 
-//using layer0000 = std::tuple_element_t<0, layer000::childLayers>;
-//static_assert (std::tuple_size_v<layer0000::keys>  ==1);
+static_assert (std::is_same_v<
+                                std::tuple_element_t<1, layer01::ThisStrings>,
+                            SS("aac")
+                            >);
+
+static_assert (std::tuple_size_v<layer01::keys>  ==1);
+static_assert (std::tuple_element_t<0, layer01::keys>::value == 'a');
+static_assert (std::tuple_element_t<0, layer01::keys>::Index == 0);
+
+static_assert (std::tuple_size_v<layer01::groups>  ==1);
 
 
-//using layer01 =  std::tuple_element_t<1, Layer0::childLayers>;
-//static_assert (std::tuple_size_v<layer01::keys>  ==1);
+using layer010 =  std::tuple_element_t<0, layer01::childLayers>;
+static_assert (std::tuple_size_v<layer010::childLayers>  ==1);
+static_assert (std::tuple_size_v<layer010::ThisStrings>  ==2);
+
+static_assert (std::is_same_v<
+                                std::tuple_element_t<0, layer010::ThisStrings>,
+                            SS("aab")
+                            >);
+
+static_assert (std::is_same_v<
+                                std::tuple_element_t<1, layer010::ThisStrings>,
+                            SS("aac")
+                            >);
+
+
+using layer0100 =  std::tuple_element_t<0, layer010::childLayers>;
+static_assert (std::tuple_size_v<layer0100::childLayers>  ==1);
+
 
 //using layer010 =  std::tuple_element_t<0, layer01::childLayers>;
 //static_assert (std::tuple_size_v<layer010::keys>  ==1);
