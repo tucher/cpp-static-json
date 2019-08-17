@@ -150,10 +150,6 @@ using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
 template<class SortedTupleT, class DupsFreeTupleT,  typename TTT=void >
 struct unique_only_getter {};
 
-template<>
-struct unique_only_getter<std::tuple<>,  std::tuple<>>{
-    using type = std::tuple<>;
-};
 
 template<class SortedTupleHeadT>
 struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<>>{
@@ -200,6 +196,12 @@ using unique_only_getter_t = typename unique_only_getter<sorted_tuple_t<TupleT>,
 //add condition function option
 template<class ValT, ValT val, class InputTuple, class ResultT, typename TTT=void >
 struct by_value_filterer {};
+
+template<class ValT, ValT val >
+struct by_value_filterer<ValT, val, std::tuple<>, std::tuple<> > {
+    using type = std::tuple<>;
+};
+
 
 template<class ValT, ValT val, class InputT, class ...ResultTypes >
 struct by_value_filterer<ValT, val, std::tuple<InputT>, std::tuple<ResultTypes...>,
@@ -282,7 +284,7 @@ template<std::size_t I, typename SString>
 struct StringWithKey{
     static constexpr auto Index = I;
     using SST = SString;
-    static constexpr auto value = ss_char_getter_v<Index, SST>;
+    static constexpr char value = ss_char_getter_v<Index, SST>;
 };
 
 template <char Cv, typename SString>
@@ -298,7 +300,7 @@ struct group_splitter<std::tuple<StringWithKey...>,  std::tuple<SStringsWithKey.
     using type = std::tuple<by_value_filterer_t<char, StringWithKey::value, std::tuple<SStringsWithKey...> >...>;
 };
 
-template <std::size_t I, typename Source, typename LGroup>
+template <std::size_t IMax, std::size_t I, typename Source, typename LGroup>
 struct LayerSplitter{};
 
 
@@ -306,20 +308,21 @@ struct LayerSplitter{};
 template <std::size_t I, typename StringsTuple, typename StringsWithKeysTuple>
 struct TrieLayer{};
 
-template <std::size_t I, typename ...SString, typename ...LayerKeyedStringTuples>
-struct LayerSplitter<I, std::tuple<SString...>, std::tuple<LayerKeyedStringTuples...>>{
+template <std::size_t IMax, std::size_t I, typename ...SString, typename ...LayerKeyedStringTuples>
+struct LayerSplitter<IMax, I, std::tuple<SString...>, std::tuple<LayerKeyedStringTuples...>>{
     using type = std::tuple<TrieLayer<I, std::tuple<SString...>, LayerKeyedStringTuples>...>;
 };
 
 template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
 struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>>{
-    using StringsWithKeys = std::tuple<StringWithKeyT...>;
-    using keys = unique_only_getter_t< StringsWithKeys>;
+    using SourceStrings = std::tuple<SString...>;
+    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
+    using keys = unique_only_getter_t< std::tuple<StringWithKeyT...>>;
 
-    using groups = typename group_splitter<keys, std::tuple<SString...>>::type;
-    using childLayers = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
-//    using  std::tuple<>
-
+    using groups = typename group_splitter<keys,
+                                                std::tuple<StringWithKey<I, SString>...>
+                                          >::type;
+    using childLayers = typename LayerSplitter<0, I+1, std::tuple<SString...>, groups>::type;
 };
 
 template <typename StringsTuple, typename Output>
@@ -328,10 +331,8 @@ struct trie_builder {};
 template <typename ... Strings, typename ... OutputItems>
 struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
 {
-    constexpr static auto MaxL = StaticMax(Strings::Size...);
+
     using Layer0 = TrieLayer<0, std::tuple<Strings...>, std::tuple<StringWithKey<0, Strings>...>>;
-//    using Layer10 = TrieLayer<1, std::tuple_element_t<0, typename Layer0::groups> >;
-//    using Layer11 = TrieLayer<1, std::tuple_element_t<1, typename Layer0::groups> >;
 
 };
 
