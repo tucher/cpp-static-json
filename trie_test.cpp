@@ -87,20 +87,16 @@ using strings2 = std::tuple <
     SS("b")
 >;
 
-int test_trie() {
+int test_trie(char *data, size_t size) {
 
-    char d[] = "fvolumetric";
-
-    auto bg = Iter(d, sizeof (d)-1);
-    auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
-
-    int result = -1;
+    int result = 0;
     auto clb = [&](std::size_t index, auto curIter,
                                       auto endIter,
                                       auto mathedStrTuple,
                                       auto nodeString,
                                       bool hasFulString,
                                       bool isLastNodeInChain) -> bool {
+        result = index;
         using NodeString = decltype (nodeString);
 
         if(hasFulString) {
@@ -110,7 +106,7 @@ int test_trie() {
         }
         if(isLastNodeInChain) {
 //            cout << " Success at index " << index << "!!!: " << nodeString.to_str() << endl;
-            result = 0;
+//            result = 0;
             return false;
         }
 //        cout << "Matched: " << endl;
@@ -126,6 +122,6 @@ int test_trie() {
     //Iter endedAt = trie::search(bg, end, clb);
     //cout << "Search ended at " << endedAt -bg << endl;
 
-    trie::search(d, d + sizeof (d) - 1, clb);
+    trie::search(data, data + size, clb);
     return result;
 }

@@ -15,3 +15,4 @@ HEADERS += \
     utils.h
 
 QMAKE_CXXFLAGS += "-Wno-gnu-string-literal-operator-template"
+#QMAKE_LFLAGS += "--strip-all"

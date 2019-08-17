@@ -1,7 +1,8 @@
 #include <iostream>
 #include "static_json.hpp"
 #include "utils.h"
-#if 0
+//#define FFUUU
+#ifdef FFUUU
 using namespace StaticJSON;
 
 class BoolLike {
@@ -85,12 +86,12 @@ void measureSlowSer() {
 
 #endif
 
-int test_trie();
+int test_trie(char *data, size_t size);
 
-int main() {
-
-    return test_trie();
-#if 0
+int main(int , char **argv) {
+    std::size_t s = 0; while(argv[1][s] != 0) s ++;
+    return test_trie(argv[1], s);
+#ifdef FFUUU
     BoolLike boolObj = false;
 
     BaseBool<BoolLike> jsonBool(boolObj);
