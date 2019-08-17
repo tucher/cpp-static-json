@@ -329,13 +329,17 @@ template <std::size_t I, typename ...SString , typename ... StringWithKeyT>
 struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
         std::enable_if_t< (I < max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
         >{
+    static constexpr bool End = false;
+
     static constexpr std::size_t DepthLevel = I;
     using SourceStrings = std::tuple<SString...>;
+    using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
+
     using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
-    using keys = unique_only_getter_t< std::tuple<StringWithKeyT...>>;
+    using keys = unique_only_getter_t< KeyedStrings>;
 
     using groups = typename group_splitter<keys,
-                                                std::tuple<StringWithKey<I, SString>...>
+                                                KeyedStrings
                                           >::type;
     using childLayers = typename LayerSplitter<I+1, std::tuple<SString...>, groups>::type;
 };
@@ -345,13 +349,10 @@ struct TrieLayer<I, std::tuple<SString...>, std::tuple<StringWithKeyT...>,
         std::enable_if_t< (I == max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
         >{
     static constexpr std::size_t DepthLevel = I;
-
     using SourceStrings = std::tuple<SString...>;
     using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
-    using keys = unique_only_getter_t< std::tuple<StringWithKeyT...>>;
 
-    using groups = std::tuple<>;
-    using childLayers = std::tuple<>;
+    static constexpr bool End = true;
 
     static_assert (sizeof... (StringWithKeyT) == 1, "Trie error, looks like there is identical strings in source tuple");
     using NodeString = std::tuple_element_t<0, ThisStrings>;
@@ -365,7 +366,6 @@ struct trie_builder<std::tuple<Strings...>, std::tuple<OutputItems...>>
 {
     static_assert(std::is_same_v<bool, bool>, "Duplicates in source string tuple are not allowed");
     using Layer0 = TrieLayer<0, std::tuple<Strings...>, std::tuple<StringWithKey<0, Strings>...>>;
-
 };
 
 template<class StringsTuple>
