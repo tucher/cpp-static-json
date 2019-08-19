@@ -44,6 +44,8 @@ struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enab
 template <class T, class TupleT>
 constexpr std::size_t tuple_first_type_index_v = tuple_first_type_index<0, T, TupleT>::value;
 
+static_assert (tuple_first_type_index_v<int, std::tuple<float, bool, int, int>> == 2, "works");
+
 
 /////////////EXTRACT TYPES SUBTUPLE FROM TUPLE////////////
 
@@ -61,6 +63,11 @@ struct tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<Is...>, std:
 
 template<std::size_t FromI, std::size_t ToI, class TupleT>
 using tuple_types_interval_t= typename tuple_types_interval<FromI, ToI, TupleT, std::index_sequence<>>::type;
+
+static_assert(std::is_same_v<std::tuple<float>, tuple_types_interval_t<1,2,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(std::is_same_v<std::tuple<float, char>, tuple_types_interval_t<1,3,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(std::is_same_v<std::tuple<float, char, bool>, tuple_types_interval_t<1,4,  std::tuple<int, float, char, bool>>>, "dddd");
+static_assert(std::is_same_v<std::tuple<int, float>, tuple_types_interval_t<0,2,  std::tuple<int, float, char, bool>>>, "dddd");
 
 
 /////////////CONCAT TUPLES/////////////
@@ -84,6 +91,9 @@ struct tuple_type_extracter<Index, std::tuple<TupleTypes...>> {
     using RestT = tuple_cat_t<tuple_types_interval_t<0, Index, Tpl>, tuple_types_interval_t<Index+1, sizeof... (TupleTypes), Tpl>>;
 };
 
+using extr_test = tuple_type_extracter<2, std::tuple<int, float, char>>;
+static_assert(std::is_same_v<extr_test::ExtractedT, char>, "dddd");
+static_assert(std::is_same_v<extr_test::RestT, std::tuple<int, float>>, "dddd");
 
 /////////////FIND MINUMUM TYPE by ::value MEMBER IN TUPLE
 
@@ -108,6 +118,10 @@ template<class Tuple>
 using min_finder_t =  typename min_finder<Tuple>::type;
 template<class Tuple>
 static constexpr auto min_finder_v =  min_finder<Tuple>::value;
+
+
+static_assert(min_finder<std::tuple<std::integral_constant<int, 5>, std::integral_constant<int, 4>,  std::integral_constant<int, 8>>>::value == 4, "dddd");
+
 /////////////FIND MAXIMUM TYPE by ::value MEMBER IN TUPLE
 
 template<class ElemsTuple, typename TTT = void>
@@ -154,6 +168,31 @@ struct sorter<TupleT, std::tuple<Sorted...>, std::enable_if_t<0 == std::tuple_si
 
 template<class TupleT>
 using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
+
+
+template<int V>
+using C = std::integral_constant<int, V>;
+using to_sort = std::tuple<
+                C<5>,
+                C<4>,
+                C<8>,
+                C<4>,
+                C<5>,
+                C<2>,
+                C<8>
+>;
+
+
+using sorted_t = sorted_tuple_t<to_sort>;
+static_assert(std::is_same_v<sorted_t,  std::tuple<
+              C<2>,
+              C<4>,
+              C<4>,
+              C<5>,
+              C<5>,
+              C<8>,
+              C<8>
+              >>, "Sorted not works");
 
 
 /////////////REMOVE DUPLICATES IN SORTED TUPLE
@@ -206,6 +245,15 @@ struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  
 template<class TupleT>
 using unique_only_getter_t = typename unique_only_getter<sorted_tuple_t<TupleT>, std::tuple<>>::type;
 
+using uniques = unique_only_getter_t<to_sort>;
+
+static_assert(std::tuple_size_v<uniques> == 4);
+static_assert(std::is_same_v<uniques,  std::tuple<
+              C<8>,
+              C<5>,
+              C<4>,
+              C<2>
+              >>, "Distinct fail");
 
 /////////////FILTER TYPES WITH equal ::value to given
 
@@ -251,6 +299,12 @@ struct by_value_filterer<ValT, val, std::tuple<InputT, OtherInputTs...>, std::tu
 template <class ValT, ValT val, class InputT>
 using by_value_filterer_t = typename by_value_filterer<ValT, val, InputT, std::tuple<>>::type;
 
+using filtered = by_value_filterer_t<int, 4, to_sort>;
+static_assert(std::tuple_size_v<filtered> == 2);
+static_assert(std::is_same_v<filtered,  std::tuple<
+              C<4>,
+              C<4>
+              >>, "Filter fail");
 
 /////////////MINMAX
 template <class T>
@@ -282,5 +336,50 @@ static constexpr auto StaticMax(const std::tuple<OtherT...> /*args*/) {
   return StaticMax(OtherT()...);
 }
 
+/////////////REPACK WITH INDEXES//////////////
+template< typename ItemType, std::size_t Index>
+struct IndexedType {
+    using ItemT = ItemType;
+    static constexpr std::size_t I = Index;
+};
+template <std::size_t I, typename Out, typename ... In>
+struct indexer{
 
+};
+
+template <std::size_t I, typename ... Items>
+struct indexer<I, std::tuple<Items...>>{
+    using type = std::tuple<Items...>;
+};
+
+template <std::size_t I, typename ... Items, typename ...SrcItems>
+struct indexer<I, std::tuple<Items...>, std::tuple<SrcItems...>>:
+        indexer<I, std::tuple<Items...>, SrcItems...>
+{
+};
+
+
+template <std::size_t I, typename ...IndexedTypes, typename FirstItem,  typename ... OtherItems>
+struct indexer<I, std::tuple<IndexedTypes...>, FirstItem,  OtherItems...>:
+        indexer<I + 1, std::tuple<IndexedTypes..., IndexedType<FirstItem, I>>, OtherItems...>{
+};
+
+
+template <typename ... SrcT>
+using indexed_types_t = typename indexer<0, std::tuple<>, SrcT...>::type;
+
+using indexed_types_test = indexed_types_t<std::tuple<int, float, double>>;
+
+static_assert (std::tuple_element_t<0, indexed_types_test>::I == 0);
+static_assert (std::tuple_element_t<1, indexed_types_test>::I == 1);
+static_assert (std::tuple_element_t<2, indexed_types_test>::I == 2);
+
+static_assert (std::is_same_v<int, std::tuple_element_t<0, indexed_types_test>::ItemT>);
+static_assert (std::is_same_v<float, std::tuple_element_t<1, indexed_types_test>::ItemT>);
+static_assert (std::is_same_v<double, std::tuple_element_t<2, indexed_types_test>::ItemT>);
+
+/////////////VALUE extractor
+
+//template <template <typename> typename ValueExtractorT>
+//struct
 #endif // TEMPLATE_UTILS_H
