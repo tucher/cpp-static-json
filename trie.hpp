@@ -23,41 +23,10 @@ struct ss_char_getter<I, SString, std::enable_if_t<I >= SString::Size> >{
 template <std::size_t I, typename  SString>
 constexpr auto ss_char_getter_v = ss_char_getter<I, SString>::value;
 
-template<std::size_t I, typename SString>
-struct StringWithKey{
-    static constexpr auto Index = I;
-    using SST = SString;
-    static constexpr char value = ss_char_getter_v<Index, SST>;
-};
-
-template <char Cv, typename SString>
-using string_with_key = std::integral_constant<char, Cv>;
-
-
-template <typename KeyTuple, typename DataTuple>
-struct group_splitter{};
-
-template<char K, class V> struct KeyedSet {
-    static constexpr char  KeyChar = K;
-    using Set = V;
-};
-
-template <class ...StringWithKey, typename ...SStringsWithKey>
-struct group_splitter<std::tuple<StringWithKey...>,  std::tuple<SStringsWithKey...> >{
-    using type = std::tuple<
-            KeyedSet<
-                StringWithKey::value,
-                by_value_filterer_t<char, StringWithKey::value, std::tuple<SStringsWithKey...> >
-            >
-    ...>;
-};
-
-template <std::size_t I, typename LGroup>
+template <std::size_t CurrentIndex, typename KeyIndexedStrings, typename SourceIndexedStrings>
 struct LayerSplitter{};
 
-
-
-template <std::size_t I, typename StringsWithKeysTuple, typename TTT=void >
+template <std::size_t I, typename IndexedStrings, typename TTT=void >
 struct TrieLayer{};
 
 
@@ -66,84 +35,78 @@ template<char K, class V> struct ChildLayerT {
     using Layer = V;
 };
 
-template < std::size_t I, typename ...LayerKeyedStringTuples>
-struct LayerSplitter<I, std::tuple<LayerKeyedStringTuples...>>{
+template <std::size_t I, char Key, typename AllIndexedStrings> struct split_helper{};
+template <std::size_t I, char Key, typename ...AllIndexedStrings> struct split_helper<I, Key, std::tuple<AllIndexedStrings...>>{
+    template <typename IndexedStr> struct Filter {
+        static constexpr bool value = ss_char_getter_v<I, typename IndexedStr::ItemT> == Key;
+    };
+    using type = by_value_filterer_t<Filter, std::tuple<AllIndexedStrings...>>;
+};
+
+template < std::size_t I, typename ...KeyIndexedStrings, typename ...AllIndexedStrings>
+struct LayerSplitter<I, std::tuple<KeyIndexedStrings...>, std::tuple<AllIndexedStrings...>>{
+
+
     using type = std::tuple<
-                ChildLayerT<
-                    LayerKeyedStringTuples::KeyChar,
-                    TrieLayer<I, typename  LayerKeyedStringTuples::Set>
-                >
+    ChildLayerT<
+    ss_char_getter_v<I, typename KeyIndexedStrings::ItemT>,
+    TrieLayer<I+1,
+    typename split_helper<I,
+    ss_char_getter_v<I, typename KeyIndexedStrings::ItemT>,
+    std::tuple<AllIndexedStrings...>
+    >::type
+    >
+    >
     ...>;
 };
 
-template <typename SS>struct SSMaxW{
-    static constexpr auto value = SS::Size;
-    using Member = SS;
+template <typename T> struct SizeExtractor {static constexpr std::size_t value = T::ItemT::Size;};
+template <typename S1, typename S2> struct StringComparator {
+    static constexpr bool value = !(typename S1::ItemT() < typename S2::ItemT());
+}; // TODO
+template <typename S1, typename S2, std::size_t Index> struct CharAtIndexComparator {
+    static constexpr bool value = ss_char_getter_v<Index, typename S1::ItemT> < ss_char_getter_v<Index, typename S2::ItemT>;
 };
 
-template <typename KeyItems>
-struct concrete_keys_extractor{};
-
-template <typename ...StringWithKeyT>
-struct concrete_keys_extractor<std::tuple<StringWithKeyT...>> {
-    static constexpr std::array<char, sizeof...(StringWithKeyT)> Keys = {StringWithKeyT::value...};
-};
-
-//TODO skip equal Layers!!
-
-
-template <typename InputTuple>
-struct member_extractor{};
-
-template <typename ...ItemT>
-struct member_extractor<std::tuple<ItemT...>> {
-    using type = std::tuple<typename ItemT::Member...>;
-};
-template <class T> using member_extractor_t = typename member_extractor<T>::type;
-
-template <std::size_t I,  typename ... StringWithKeyT>
-struct TrieLayer<I, std::tuple<StringWithKeyT...>,
-        std::enable_if_t< (sizeof...(StringWithKeyT) > 1 && I < max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >
+template <std::size_t I,  typename ... StringWithIndex>
+struct TrieLayer<I, std::tuple<StringWithIndex...>,
+        std::enable_if_t< (sizeof...(StringWithIndex) > 1 && I < max_finder_v<std::tuple<StringWithIndex...>,SizeExtractor >) >
+>
 {
-
-    using ThisStrings = member_extractor_t<sorted_tuple_t  <
-            std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>
-        >>;
+    private:
+    using InputStringTuple = std::tuple<StringWithIndex ...>;
+    public:
+    using ThisStrings = sorted_tuple_t  <
+        InputStringTuple,
+        StringComparator
+    >;
     using NodeString = typename std::tuple_element_t<0, ThisStrings>;
-    static constexpr bool HasFullString = I >= NodeString::Size;
+    static constexpr bool HasFullString = I >= NodeString::ItemT::Size;
 
-private:
-    static constexpr auto MinLength = min_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>;
+    private:
+    template<typename S1, typename S2>
+    using comparator = CharAtIndexComparator<S1, S2, I>;
+    template<typename S>
+    using char_extractor = ss_char_getter<I, typename S::ItemT>;
+    using keys = unique_only_getter_t<sorted_tuple_t<InputStringTuple, comparator>, char_extractor>;
 
-    using StringEndedHere = by_value_filterer_t<std::size_t, MinLength ,std::tuple<SSMaxW<typename StringWithKeyT::SST> ...> >;
-    static constexpr std::size_t DepthLevel = I;
-    using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
-    using keys = unique_only_getter_t< KeyedStrings>;
-    static constexpr auto KeyChars = concrete_keys_extractor<keys>::Keys;
-    using groups = typename group_splitter<keys,
-                                                KeyedStrings
-                                          >::type;
-public:
-    using NextNodes = typename LayerSplitter<I+1, groups>::type;
+    public:
+    using NextNodes = typename LayerSplitter<I, keys, InputStringTuple>::type;
     static constexpr bool Last = std::tuple_size_v<NextNodes> == 0;
 };
 
-template <std::size_t I, typename ... StringWithKeyT>
-struct TrieLayer<I, std::tuple<StringWithKeyT...>,
-        std::enable_if_t< (sizeof...(StringWithKeyT) == 1 || I == max_finder_v<std::tuple<SSMaxW<typename StringWithKeyT::SST> ...>>) >
-        >
+template <std::size_t I, typename ... StringWithIndex>
+struct TrieLayer<I, std::tuple<StringWithIndex...>,
+        std::enable_if_t< (sizeof...(StringWithIndex) == 1 || I == max_finder_v<std::tuple<StringWithIndex ...>, SizeExtractor>) >
+>
 {
-    using ThisStrings = std::tuple<typename StringWithKeyT::SST...>;
+    private:
+    using InputStringTuple = std::tuple<StringWithIndex ...>;
+    public:
+    using ThisStrings = InputStringTuple;
     using NodeString = std::tuple_element_t<0, ThisStrings>;
 
-private:
-    static constexpr std::size_t DepthLevel = I;
-    using KeyedStrings = std::tuple<StringWithKey<I, typename StringWithKeyT::SST>...>;
-    using keys = unique_only_getter_t< KeyedStrings>;
-    static constexpr auto KeyChars = concrete_keys_extractor<keys>::Keys;
-    static_assert (sizeof... (StringWithKeyT) == 1, "Trie error: looks like there are identical strings in source tuple");
-public:
+    static_assert (sizeof... (StringWithIndex) == 1, "Trie error: looks like there are identical strings in source tuple");
     using NextNodes = std::tuple<>;
     static constexpr bool HasFullString = true;
     static constexpr bool Last = true;
@@ -152,49 +115,28 @@ public:
 template <typename Src,  typename V = void>
 struct StaticTrie{};
 
-template <typename ... Strings>
-struct StaticTrie<std::tuple<Strings...>/*, std::enable_if_t<
-        !(true && ... && SString::is_ss_v<Strings>)
-        >*/>
+template <typename ... IndexedStrings>
+struct StaticTrie<std::tuple<IndexedStrings...>/*, std::enable_if_t<
+                !(true && ... && SString::is_ss_v<Strings>)
+                >*/>
 {
     static_assert(true, "Duplicates in source string tuple are not allowed"); //TODO
-    using L = TrieLayer<0, std::tuple<StringWithKey<0, Strings>...>>;
-
-    void print() {
-
-        auto iterator = []( auto & layer, const auto & self) -> void{
-            using LT = typename std::remove_reference_t<decltype (layer)>::Layer;
-//            cout << "Index: " << LT::DepthLevel << " ";
-
-            if constexpr(LT::HasFullString) {
-//                cout << "END: " << LT::NodeString::to_str();
-            } else {
-                for(auto ch: LT::KeyChars) {
-//                    cout  << " " << ch << " " ;
-                }
-            }
-//            cout    << endl;
-            iterateTuple(typename LT::NextNodes(), self, self);
-        };
-
-        iterateTuple(L::NextNodes(), iterator, iterator);
-    }
+    using L = TrieLayer<0, std::tuple<IndexedStrings...>>;
 
     template<bool IsLast, bool HasFull, std::size_t I, typename StringsT, typename NString>
     struct MatchRes{
         using MatchedStrings = StringsT;
-        using SourceStrings = std::tuple<Strings...>;
+        using SourceStrings = std::tuple<IndexedStrings...>;
         using NodeString = NString;
         static constexpr bool hasFull = HasFull;
         static constexpr bool isLast = IsLast;
-        static constexpr std::size_t Index = I;
+        static constexpr std::size_t index = I;
     };
     template<class Iter, class Clb>
-    static Iter search (Iter iter, Iter end, Clb clb ) {
+    static Iter search (Iter &iter, Iter end, Clb clb ) {
         bool to_continue = true;
-        std::size_t index = 0;
         char symbol = *iter;
-        int counter = 0;
+//        int counter = 0;
         auto searcher= [&]( auto & layer, const auto & self) -> void{
             using Item =  std::remove_reference_t<decltype (layer)>;
             using LT = typename Item::Layer;
@@ -202,27 +144,25 @@ struct StaticTrie<std::tuple<Strings...>/*, std::enable_if_t<
 
             if(!to_continue || key != symbol) return;
 
-            to_continue = clb(MatchRes<LT::Last, LT::HasFullString,
-                                tuple_first_type_index_v<typename LT::NodeString, std::tuple<Strings...>>,
-                                typename LT::ThisStrings, typename LT::NodeString>{}
+            to_continue = clb(iter, MatchRes<LT::Last, LT::HasFullString,
+                              LT::NodeString::I,
+                              typename LT::ThisStrings, typename LT::NodeString::ItemT>{}
                               );
-            to_continue = ! LT::Last;
+            if constexpr(LT::Last) to_continue = false;
             if(to_continue) {
-                ++iter;
-                ++index;
                 symbol = * iter;
                 if (iter == end) to_continue = false;
                 iterateTuple(typename LT::NextNodes(), self, self);
             }
-
-            counter ++;
-
+//            counter ++;
         };
         iterateTuple(typename L::NextNodes(), searcher, searcher);
         return iter;
     }
 };
 
+template <typename ...SStrings>
+using Trie = StaticTrie<indexed_types_t<SStrings...>>;
 //template <typename ... Strings>
 //struct StaticTrie<std::tuple<Strings...>, std::enable_if_t<
 //        (true && ... && SString::is_ss_v<Strings>)

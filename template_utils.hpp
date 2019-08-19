@@ -5,15 +5,15 @@
 
 /////////////TUPLE ITERATION/////////////
 
-template<class F, class...Ts, std::size_t...Is>
-void iterateTuple(std::tuple<Ts...> & tuple, F && func, std::index_sequence<Is...>){
+template<class F, class...Ts, std::size_t...Is, class ...Args>
+void iterateTuple(std::tuple<Ts...> & tuple, F && func, std::index_sequence<Is...>, Args...args){
     using expander = int[];
-    (void)expander { 0, ((void)func(std::get<Is>(tuple)), 0)... };
+    (void)expander { 0, ((void)func(std::get<Is>(tuple), args...), 0)... };
 }
 
-template<class F, class...Ts>
-void iterateTuple(std::tuple<Ts...> & tuple, F && func){
-    iterateTuple(tuple, std::move(func), std::make_index_sequence<sizeof...(Ts)>());
+template<class F, class...Ts, class ...Args>
+void iterateTuple(std::tuple<Ts...> & tuple, F && func, Args...args){
+    iterateTuple(tuple, func, std::make_index_sequence<sizeof...(Ts)>(), args...);
 }
 
 template<class F, class...Ts, std::size_t...Is, class ...Args>
@@ -24,7 +24,7 @@ void iterateTuple(const std::tuple<Ts...> & tuple, F && func, std::index_sequenc
 
 template<class F, class...Ts, class ...Args>
 void iterateTuple(const std::tuple<Ts...> & tuple, F && func, Args...args){
-    iterateTuple(tuple, std::move(func), std::make_index_sequence<sizeof...(Ts)>(), args...);
+    iterateTuple(tuple, func, std::make_index_sequence<sizeof...(Ts)>(), args...);
 }
 
 /////////////FIND TYPE INDEX IN TUPLE//////
@@ -91,83 +91,114 @@ struct tuple_type_extracter<Index, std::tuple<TupleTypes...>> {
     using RestT = tuple_cat_t<tuple_types_interval_t<0, Index, Tpl>, tuple_types_interval_t<Index+1, sizeof... (TupleTypes), Tpl>>;
 };
 
+namespace tuple_type_extractor_test {
 using extr_test = tuple_type_extracter<2, std::tuple<int, float, char>>;
 static_assert(std::is_same_v<extr_test::ExtractedT, char>, "dddd");
 static_assert(std::is_same_v<extr_test::RestT, std::tuple<int, float>>, "dddd");
+}
 
+/////////////
+template<class In>
+struct DefaulExtractor {static constexpr int value = In::value;};
+
+template<class In1, class In2>
+struct DefaulCompare {static constexpr int value = In1::value < In2::value;};
 /////////////FIND MINUMUM TYPE by ::value MEMBER IN TUPLE
 
-template<class ElemsTuple, typename TTT = void>
+template<class ElemsTuple, template<typename, typename> class Comparator, typename TTT = void>
 struct min_finder {};
 
-template<class Elem>
-struct min_finder<std::tuple<Elem>> {
+template<class Elem, template<typename, typename> class Comparator>
+struct min_finder<std::tuple<Elem>, Comparator> {
     using type = Elem;
-    static constexpr auto value = Elem::value;
 };
 
-template<class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value < ElemSecond::value>>:
-        min_finder<std::tuple<ElemFirst, ElemsRest...>> {};
+template<template<typename,typename> class Comparator, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Comparator, std::enable_if_t<Comparator<ElemFirst, ElemSecond>::value == true>>:
+        min_finder<std::tuple<ElemFirst, ElemsRest...>, Comparator> {};
 
-template<class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value >= ElemSecond::value>>:
-        min_finder<std::tuple<ElemSecond, ElemsRest...>> {};
+template<template<typename, typename> class Comparator, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct min_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Comparator, std::enable_if_t<Comparator<ElemFirst, ElemSecond>::value== false>>:
+        min_finder<std::tuple<ElemSecond, ElemsRest...>, Comparator> {};
 
-template<class Tuple>
-using min_finder_t =  typename min_finder<Tuple>::type;
-template<class Tuple>
-static constexpr auto min_finder_v =  min_finder<Tuple>::value;
+template<class Tuple, template<typename, typename> class Comparator = DefaulCompare>
+using min_finder_t =  typename min_finder<Tuple, Comparator>::type;
 
+namespace min_finder_test {
+    static_assert(min_finder_t<std::tuple<std::integral_constant<int, 5>, std::integral_constant<int, 4>,  std::integral_constant<int, 8>>>::value == 4, "dddd");
 
-static_assert(min_finder<std::tuple<std::integral_constant<int, 5>, std::integral_constant<int, 4>,  std::integral_constant<int, 8>>>::value == 4, "dddd");
+    template <int V = 0, class T = void> struct Elem{ static constexpr int erverv = V; using Type = T;};
+
+    template <typename In1, typename In2>
+    struct Comparator {static constexpr bool value = In1::erverv < In2::erverv;};
+    using seq = std::tuple<Elem<2, int>, Elem<-1, float>, Elem<8, bool>>;
+    static_assert (min_finder_t<seq, Comparator>::erverv == -1);
+    static_assert (std::is_same_v<min_finder_t<seq, Comparator>::Type, float>);
+}
 
 /////////////FIND MAXIMUM TYPE by ::value MEMBER IN TUPLE
 
-template<class ElemsTuple, typename TTT = void>
-struct max_finder {};
-
-template<class Elem>
-struct max_finder<std::tuple<Elem>> {
-    using type = Elem;
-    static constexpr auto value = Elem::value;
+template<class ElemsTuple, template<typename> class Extractor, typename TTT = void>
+struct max_finder {
+    static_assert (!std::is_same_v<TTT, void>, "Use std::tuple<Elem1, Elem2 ...> please");
 };
 
-template<class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<(ElemFirst::value > ElemSecond::value)>>:
-        max_finder<std::tuple<ElemFirst, ElemsRest...>> {};
+template<template<typename> class Extractor, class Elem>
+struct max_finder<std::tuple<Elem>, Extractor> {
+    using type = Elem;
+    static constexpr auto value = Extractor<Elem>::value;
+};
 
-template<class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, std::enable_if_t<ElemFirst::value <= ElemSecond::value>>:
-        max_finder<std::tuple<ElemSecond, ElemsRest...>> {};
+template<template<typename> class Extractor, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Extractor, std::enable_if_t<(Extractor<ElemFirst>::value > Extractor<ElemSecond>::value)>>:
+        max_finder<std::tuple<ElemFirst, ElemsRest...>, Extractor> {};
 
-template<class Tuple>
-using max_finder_t =  typename max_finder<Tuple>::type;
-template<class Tuple>
-static constexpr auto max_finder_v =  max_finder<Tuple>::value;
+template<template<typename> class Extractor, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Extractor, std::enable_if_t< Extractor<ElemFirst>::value <= Extractor<ElemSecond>::value>>:
+        max_finder<std::tuple<ElemSecond, ElemsRest...>, Extractor> {};
+
+template<class Tuple, template<typename> class Extractor = DefaulExtractor>
+using max_finder_t =  typename max_finder<Tuple, Extractor>::type;
+template<class Tuple, template<typename> class Extractor = DefaulExtractor>
+static constexpr auto max_finder_v =  max_finder<Tuple, Extractor>::value;
+
+
+namespace max_finder_test {
+    template <int V = 0, class T = void> struct Elem{ static constexpr int erverv = V; using Type = T;};
+
+    template <typename In=void>
+    struct Extractor {static constexpr int value = In::erverv;};
+    using seq = std::tuple<Elem<2, int>, Elem<16, float>, Elem<8, bool>>;
+    static_assert (max_finder_v<seq, Extractor> == 16);
+    static_assert (std::is_same_v<max_finder_t<seq, Extractor>::Type, float>);
+    static_assert (std::is_same_v<max_finder_t<seq, Extractor>::Type, float>);
+
+}
 
 /////////////SORT TYPES TUPLE ASCENDING BY ::value MEMBER
 
-template<class TupleT, class TupleSorted,  typename TTT=void >
+template<class TupleT, class TupleSorted, template<typename, typename> class ValExtractor, typename TTT=void >
 struct sorter {};
 
-template <class TupleT>
+template <template<typename, typename> class ValExtractor, class TupleT>
 struct MinRestExtractor{
-    using Min = min_finder_t<TupleT>;
+    using Min = min_finder_t<TupleT, ValExtractor>;
     using Rest = typename tuple_type_extracter<tuple_first_type_index_v<Min, TupleT>, TupleT>::RestT;
 };
 
-template<class TupleT, class ...Sorted>
-struct sorter<TupleT,  std::tuple<Sorted...>, std::enable_if_t<0<std::tuple_size_v<TupleT>>>
-    : sorter<typename MinRestExtractor<TupleT>::Rest, std::tuple<Sorted..., typename MinRestExtractor<TupleT>::Min>> {};
+template<template<typename, typename> class ValExtractor, class TupleT, class ...Sorted>
+struct sorter<TupleT,  std::tuple<Sorted...>, ValExtractor, std::enable_if_t<0<std::tuple_size_v<TupleT>>>
+    : sorter<typename MinRestExtractor<ValExtractor, TupleT>::Rest, std::tuple<Sorted..., typename MinRestExtractor<ValExtractor, TupleT>::Min>, ValExtractor> {};
 
-template<class TupleT, class ...Sorted>
-struct sorter<TupleT, std::tuple<Sorted...>, std::enable_if_t<0 == std::tuple_size_v<TupleT>>> {
+template<template<typename, typename> class ValExtractor, class TupleT, class ...Sorted>
+struct sorter<TupleT, std::tuple<Sorted...>, ValExtractor, std::enable_if_t<0 == std::tuple_size_v<TupleT>>> {
     using type = std::tuple<Sorted...>;
 };
 
-template<class TupleT>
-using sorted_tuple_t = typename sorter<TupleT, std::tuple<>>::type;
+template<class TupleT, template<typename, typename> class ValExtractor = DefaulCompare >
+using sorted_tuple_t = typename sorter<TupleT, std::tuple<>, ValExtractor>::type;
+
+namespace sorted_tuple_test {
 
 
 template<int V>
@@ -182,7 +213,6 @@ using to_sort = std::tuple<
                 C<8>
 >;
 
-
 using sorted_t = sorted_tuple_t<to_sort>;
 static_assert(std::is_same_v<sorted_t,  std::tuple<
               C<2>,
@@ -193,59 +223,73 @@ static_assert(std::is_same_v<sorted_t,  std::tuple<
               C<8>,
               C<8>
               >>, "Sorted not works");
-
+}
 
 /////////////REMOVE DUPLICATES IN SORTED TUPLE
 
 
-template<class SortedTupleT, class DupsFreeTupleT,  typename TTT=void >
+template<class SortedTupleT, class DupsFreeTupleT, template<typename> class ValExtractor,  typename TTT=void >
 struct unique_only_getter {};
 
-template<>
-struct unique_only_getter<std::tuple<>,  std::tuple<>>{
+template<template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<>,  std::tuple<>, ValExtractor>{
     using type = std::tuple<>;
 };
 
-template<class SortedTupleHeadT>
-struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<>>{
+template<class SortedTupleHeadT, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<>, ValExtractor>{
     using type = std::tuple<SortedTupleHeadT>;
 };
 
-template<class SortedTupleHeadT, class ...SortedTupleOtherTs>
-struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<>,
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<>, ValExtractor,
         std::enable_if_t < 0 < sizeof... (SortedTupleOtherTs)  >>
-    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT>> {};
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT>, ValExtractor> {};
 
 
-template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs>
-struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
-        std::enable_if_t < SortedTupleHeadT::value != DupsFreeHeadT::value > > {
+template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>, ValExtractor,
+        std::enable_if_t < ValExtractor<SortedTupleHeadT>::value != ValExtractor<DupsFreeHeadT>::value > > {
     using type = std::tuple<SortedTupleHeadT, DupsFreeHeadT, DupsFreeTs...>;
 };
 
-template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs>
-struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
-        std::enable_if_t < SortedTupleHeadT::value == DupsFreeHeadT::value > > {
+template<class SortedTupleHeadT, class DupsFreeHeadT, class ...DupsFreeTs, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>, ValExtractor,
+        std::enable_if_t < ValExtractor<SortedTupleHeadT>::value == ValExtractor<DupsFreeHeadT>::value > > {
     using type = std::tuple<DupsFreeHeadT, DupsFreeTs...>;
 };
 
-template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs>
-struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
-        std::enable_if_t < SortedTupleHeadT::value != DupsFreeHeadT::value >>
-    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT, DupsFreeHeadT, DupsFreeTs...>> {};
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>, ValExtractor,
+        std::enable_if_t < ValExtractor<SortedTupleHeadT>::value != ValExtractor<DupsFreeHeadT>::value >>
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<SortedTupleHeadT, DupsFreeHeadT, DupsFreeTs...>, ValExtractor> {};
 
 
-template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs>
-struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>,
-        std::enable_if_t < SortedTupleHeadT::value ==   DupsFreeHeadT::value>>
-    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<DupsFreeHeadT, DupsFreeTs...> > {};
+template<class SortedTupleHeadT, class ...SortedTupleOtherTs, class DupsFreeHeadT, class ...DupsFreeTs, template<typename> class ValExtractor>
+struct unique_only_getter<std::tuple<SortedTupleHeadT, SortedTupleOtherTs...>,  std::tuple<DupsFreeHeadT, DupsFreeTs...>, ValExtractor,
+        std::enable_if_t < ValExtractor<SortedTupleHeadT>::value ==   ValExtractor<DupsFreeHeadT>::value>>
+    : unique_only_getter<std::tuple<SortedTupleOtherTs...>, std::tuple<DupsFreeHeadT, DupsFreeTs...>, ValExtractor > {};
 
 
 
-template<class TupleT>
-using unique_only_getter_t = typename unique_only_getter<sorted_tuple_t<TupleT>, std::tuple<>>::type;
+template<class SortedTupleT, template<typename> class ValExtractor = DefaulExtractor>
+using unique_only_getter_t = typename unique_only_getter<SortedTupleT, std::tuple<>, ValExtractor>::type;
 
-using uniques = unique_only_getter_t<to_sort>;
+
+namespace unique_only_getter_test {
+template<int V>
+using C = std::integral_constant<int, V>;
+using to_sort = std::tuple<
+                C<5>,
+                C<4>,
+                C<8>,
+                C<4>,
+                C<5>,
+                C<2>,
+                C<8>
+>;
+
+using uniques = unique_only_getter_t<sorted_tuple_t<to_sort>>;
 
 static_assert(std::tuple_size_v<uniques> == 4);
 static_assert(std::is_same_v<uniques,  std::tuple<
@@ -255,56 +299,86 @@ static_assert(std::is_same_v<uniques,  std::tuple<
               C<2>
               >>, "Distinct fail");
 
+template <int V = 0, class T = void> struct Elem{ static constexpr int erverv = V; using Type = T;};
+
+template <typename In>
+struct Extractor {static constexpr int value = In::erverv;};
+template <typename In1, typename In2>
+struct Comparator {static constexpr bool value = In1::erverv < In2::erverv;};
+
+using seq = std::tuple<Elem<2, int>, Elem<-1, float>, Elem<8, bool>, Elem<-1, float>, Elem<2, int>>;
+using uniques2 = unique_only_getter_t<sorted_tuple_t<seq, Comparator>, Extractor>;
+static_assert(std::is_same_v<uniques2,
+              std::tuple<Elem<8, bool>, Elem<2, int>, Elem<-1, float>>
+              >, "Distinct fail");
+
+}
+
+
 /////////////FILTER TYPES WITH equal ::value to given
 
-//add condition function option
-template<class ValT, ValT val, class InputTuple, class ResultT, typename TTT=void >
+template<template<typename> class Condition, class InputTuple, class ResultT, typename TTT=void >
 struct by_value_filterer {};
 
-template<class ValT, ValT val >
-struct by_value_filterer<ValT, val, std::tuple<>, std::tuple<> > {
+template<template<typename> class Condition >
+struct by_value_filterer<Condition, std::tuple<>, std::tuple<> > {
     using type = std::tuple<>;
 };
 
 
-template<class ValT, ValT val, class InputT, class ...ResultTypes >
-struct by_value_filterer<ValT, val, std::tuple<InputT>, std::tuple<ResultTypes...>,
-        std::enable_if_t<InputT::value == val> > {
+template<template<typename> class Condition, class InputT, class ...ResultTypes >
+struct by_value_filterer<Condition, std::tuple<InputT>, std::tuple<ResultTypes...>,
+        std::enable_if_t<Condition<InputT>::value == true> > {
     using type = std::tuple<ResultTypes..., InputT>;
 };
 
-template<class ValT, ValT val, class InputT, class ...ResultTypes >
-struct by_value_filterer<ValT, val, std::tuple<InputT>, std::tuple<ResultTypes...>,
-        std::enable_if_t<InputT::value != val> > {
+template<template<typename> class Condition, class InputT, class ...ResultTypes >
+struct by_value_filterer<Condition, std::tuple<InputT>, std::tuple<ResultTypes...>,
+        std::enable_if_t<Condition<InputT>::value == false> > {
     using type = std::tuple<ResultTypes...>;
 };
 
 
-template<class ValT, ValT val, class InputT, class ...OtherInputTs, class ...ResultTypes >
-struct by_value_filterer<ValT, val, std::tuple<InputT, OtherInputTs...>, std::tuple<ResultTypes...>,
-        std::enable_if_t<InputT::value == val> > :
-        by_value_filterer<ValT, val, std::tuple<OtherInputTs...>, std::tuple<ResultTypes..., InputT> >
+template<template<typename> class Condition, class InputT, class ...OtherInputTs, class ...ResultTypes >
+struct by_value_filterer<Condition, std::tuple<InputT, OtherInputTs...>, std::tuple<ResultTypes...>,
+        std::enable_if_t<Condition<InputT>::value == true> > :
+        by_value_filterer<Condition, std::tuple<OtherInputTs...>, std::tuple<ResultTypes..., InputT> >
 {
 
 };
 
-template<class ValT, ValT val, class InputT, class ...OtherInputTs, class ...ResultTypes >
-struct by_value_filterer<ValT, val, std::tuple<InputT, OtherInputTs...>, std::tuple<ResultTypes...>,
-        std::enable_if_t<InputT::value != val> > :
-        by_value_filterer<ValT, val, std::tuple<OtherInputTs...>, std::tuple<ResultTypes...> >
+template<template<typename> class Condition, class InputT, class ...OtherInputTs, class ...ResultTypes >
+struct by_value_filterer<Condition, std::tuple<InputT, OtherInputTs...>, std::tuple<ResultTypes...>,
+        std::enable_if_t<Condition<InputT>::value == false> > :
+        by_value_filterer<Condition, std::tuple<OtherInputTs...>, std::tuple<ResultTypes...> >
 {
 
 };
 
-template <class ValT, ValT val, class InputT>
-using by_value_filterer_t = typename by_value_filterer<ValT, val, InputT, std::tuple<>>::type;
+template <template<typename> class Condition, class InputT>
+using by_value_filterer_t = typename by_value_filterer<Condition, InputT, std::tuple<>>::type;
 
-using filtered = by_value_filterer_t<int, 4, to_sort>;
+namespace by_value_filterer_test {
+template<int V>
+using C = std::integral_constant<int, V>;
+using to_sort = std::tuple<
+                C<5>,
+                C<4>,
+                C<8>,
+                C<4>,
+                C<5>,
+                C<2>,
+                C<8>
+>;
+template <class C> struct cond {static constexpr bool value = C::value == 4;};
+using filtered = by_value_filterer_t<cond, to_sort>;
 static_assert(std::tuple_size_v<filtered> == 2);
 static_assert(std::is_same_v<filtered,  std::tuple<
               C<4>,
               C<4>
               >>, "Filter fail");
+}
+
 
 /////////////MINMAX
 template <class T>
@@ -378,8 +452,5 @@ static_assert (std::is_same_v<int, std::tuple_element_t<0, indexed_types_test>::
 static_assert (std::is_same_v<float, std::tuple_element_t<1, indexed_types_test>::ItemT>);
 static_assert (std::is_same_v<double, std::tuple_element_t<2, indexed_types_test>::ItemT>);
 
-/////////////VALUE extractor
 
-//template <template <typename> typename ValueExtractorT>
-//struct
 #endif // TEMPLATE_UTILS_H

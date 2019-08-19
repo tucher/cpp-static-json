@@ -1,7 +1,7 @@
 #include <iostream>
 #include "static_json.hpp"
 #include "utils.h"
-//#define FFUUU
+#define FFUUU
 #ifdef FFUUU
 using namespace StaticJSON;
 
@@ -90,7 +90,7 @@ int test_trie(char *data, size_t size);
 
 int main(int , char **argv) {
     std::size_t s = 0; while(argv[1][s] != 0) s ++;
-    return test_trie(argv[1], s);
+//    return test_trie(argv[1], s);
 #ifdef FFUUU
     BoolLike boolObj = false;
 

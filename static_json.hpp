@@ -8,6 +8,8 @@
 #include  <cctype>
 #include <cstdlib>
 #include <array>
+#include <trie.hpp>
+
 using namespace std;
 
 namespace  StaticJSON {
@@ -32,8 +34,9 @@ using OptionalRef = Opt<TargetT, TypeLikeT, use_ref_v <TargetT, TypeLikeT>>;
 template <typename Iter>
 Iter skipWSUntil(Iter it, Iter end, char c) {
     while(it != end) {
-        if(*it == c) return it;
-        else if(!std::isspace(*it)) return end;
+        char ch = *it;
+        if(ch == c) return it;
+        else if(!std::isspace(ch)) return end;
         ++it;
     }
     return end;
@@ -106,7 +109,7 @@ public:
         }
     }
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter & it, Iter end) {
         if(it = skipWSUntil(it, end, [](char c){return c == 'f' || c == 't';}); it == end) return end;
         char t[] = "rue";
         char f[] = "alse";
@@ -171,7 +174,7 @@ public:
         return other.m_value == m_value;
     }
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter & it, Iter end) {
         if(it = skipWS(it, end); it == end) return end;
         char buf[20];
         int l = 0;
@@ -236,7 +239,7 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter& it, Iter end) {
         if(it = skipWSUntil(it, end, '"'); it == end) return end;
         ++it;
         std::size_t i = 0;
@@ -306,7 +309,7 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter &it, Iter end) {
         if(it = skipWS(it, end); it == end) return end;
         char buf[20];
         int l = 0;
@@ -376,7 +379,7 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter &it, Iter end) {
         it = skipWSUntil(it, end, '[');
         if(it == end) return end;
          ++it;
@@ -440,7 +443,7 @@ struct WithName{
         member.Serialise(it);
     }
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter &it, Iter end) {
         it = skipWSUntil(it, end, '"');
         if(it == end) return end;
 
@@ -479,6 +482,8 @@ class Object {
     template <typename SS, typename MemberT> struct IsWithName<WithName<SS, MemberT>> : std::true_type { };
 
     static_assert((true && ... && IsWithName<Members>::value), "Please, use WithName wrapper to create object members");
+
+    using Trie = StaticTrie::Trie<typename Members::Name...>;
 
     template<typename OtherT, std::size_t ... Is>
     bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
@@ -530,35 +535,54 @@ public:
        *it  = '}';
     }
     template <typename Iter>
-    Iter Deserialise(Iter it, Iter end) {
+    Iter Deserialise(Iter& it, Iter end) {
         it = skipWSUntil(it, end, '{');
         if(it == end) return end;
          ++it;
         //props finding
-        bool err = false;
-        bool nothingFound = true;
-        do {
-            nothingFound = true;
-            foreach(
-                    [&](auto &kv){
-                    if(err || !nothingFound || *it == '}') return ;
-                     Iter cur =  kv.Deserialise(it, end);
-                    if(cur != end) {
-                        nothingFound = false;
-                        it = cur;
-                        it = skipWSUntil(it, end, [](char c){return c == '}'||c==',';});
-                        if(cur == end) {err = true; return;}
-                        if(*cur == ',') ++cur;
-                        it = cur;
-                        it = skipWS(it, end);
-                        if(cur == end) {err = true; return;}
-                    }
-            });
 
-            if(err) return end;
-        } while(!nothingFound);
-        it = skipWS(it, end);
-        if(it == end) return end;
+        auto clb = [&](Iter & it, auto matchInfo) -> bool {
+            if constexpr(matchInfo.hasFull) {
+                ++it;
+                if(it == end) return false;
+                if constexpr(matchInfo.isLast) {
+                    while(*it != '"' && it != end) ++ it;
+                }
+                if(it == end) return false;
+                if(*it != '"') {
+                    return true;
+                }
+
+                ++it;
+                if(it == end) return false;
+                it = skipWSUntil(it, end, ':');
+                if(it == end) return false;
+                ++it;
+                it = skipWS(it, end);
+                if(it == end) return false;
+                it = std::get<matchInfo.index>(m_members).member.Deserialise(it, end);
+                return false;
+            } else
+                ++it;
+            return true;
+        };
+
+        do {
+
+            it = skipWSUntil(it, end, '"');
+            if(it == end) return end;
+            ++it;
+            Trie::search(it, end, clb);
+
+            if(it == end) return end;
+            it = skipWS(it, end);
+            if(it == end) return end;
+
+            if(*it == ',') {
+                ++it;
+                it = skipWS(it, end);
+            }
+        } while(*it != '}' && it!=end);
         if(*it != '}') return end;
         ++it;
         it = skipWS(it, end);
