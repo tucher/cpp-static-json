@@ -23,23 +23,23 @@ public:
 };
 using Msg1Type =
         Object<
-            WithName<SS("array"), Array<
+            SS("props"), Array<
                 Bool,
-                Int<10, std::int32_t>,
-                Int<5, std::int16_t>,
+                Int,
+                Int,
                 Object<
-                    WithName<SS("boolean_field"), Bool>,
-                    WithName<SS("int_field"), Int<10, std::int32_t>>,
-                    WithName<SS("string"), String<10>>,
-                    WithName<SS("string"), Object<
-                        WithName<SS("boolean_field"), Bool>,
-                        WithName<SS("int_field"), Int<10, std::int32_t>>,
-                        WithName<SS("string"), String<10>>
-                    >>
+                    SS("flag1"), Bool,
+                    SS("counter"), Int,
+                    SS("msg"), String<10>,
+                    SS("string"), Object<
+                        N<SS("active"), Bool>,
+                        N<SS("size"), Int>,
+                        N<SS("name"), String<10>>
+                    >
                 >
                 >
-            > ,
-            WithName<SS("string"), String<10>>
+            ,
+            SS("error"), String<10>
           >
        ;
 
@@ -107,57 +107,69 @@ int main(int , char **argv) {
 
     using Msg1Type =
             Object<
-                WithName<SS("array"), Array<
+                SS("array"), Array<
                     Bool,
-                    Int<10, std::int32_t>,
-                    Int<5, std::int16_t>,
+                    Int,
+                    Int,
                     Object<
-                        WithName<SS("boolean_field"), Bool>,
-                        WithName<SS("int_field"), Int<10, std::int32_t>>,
-                        WithName<SS("string"), String<10>>,
-                        WithName<SS("string"), Object<
-                            WithName<SS("boolean_field"), Bool>,
-                            WithName<SS("int_field"), Int<10, std::int32_t>>,
-                            WithName<SS("string"), String<10>>
-                        >>
+                        SS("boolean_field"), Bool,
+                        SS("int_field"), Int>,
+                        SS("string"), String<10>,
+                        SS("string"), Object<
+                            SS("boolean_field"), Bool,
+                            SS("int_field"), Int,
+                            SS("string"), String<10>
+                        >
                     >
-                    >
-                > ,
-                WithName<SS("string"), String<10>>
-              >
+                ,
+                SS("string"), String<10>
+            >
            ;
     Msg1Type ();
 
     using Msg2Type =
             Object<
-                WithName<SS("bf"), Bool>,
-                WithName<SS("obj"), Object<
-                    WithName<SS("arr"), Array<Bool, Bool, Bool>>,
-                    WithName<SS("boolean_field"), Bool>
-                >>,
-                WithName<SS("bool"), Bool>,
-                WithName<SS("obj_more"), Object<
-                    WithName<SS("int"), Int<10, std::int32_t>>,
-                    WithName<SS("float"), Double<10, float>>,
-                    WithName<SS("string"), String<10>>
-                >>
+                SS("bf"), Bool,
+                SS("obj"), Object<
+                    SS("states"), Array<Bool, Bool, Bool>,
+                    SS("flag"), Bool
+                >,
+                SS("active"), Bool,
+                SS("child"), Object<
+                    SS("count"), Int,
+                    SS("temp"), Double,
+                    SS("msg"), String<10>
+                >
               >
            ;
+
+    using TrieT = tuple_element_t<1, Msg2Type::MemberTupleT>::MemberT::Trie;
+    static_assert (TrieT::L::Last == false);
+    static_assert (tuple_size_v<TrieT::L::InputStringTuple> == 2);
+    static_assert (std::tuple_element_t<0, TrieT::L::NextNodes>::Key == 's');
+    static_assert (std::tuple_element_t<1, TrieT::L::NextNodes>::Key == 'f');
+
+//    static_assert (std::tuple_element_t<0, Trie::L::NextNodes>::Layer::Last == true);
+//    static_assert (std::tuple_element_t<1, Trie::L::NextNodes>::Layer::Last == true);
+
+//    static_assert (is_same_v<std::tuple_element_t<0, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("state")>);
+//    static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("flag")>);
+
     Msg2Type obj;
     obj.at<0>() = true;
     Msg2Type obj2;
     obj2.at<0>() = true;
     cout << "obj == obj2: "<<( obj == obj2) << endl;
     static constexpr char d[] = R"JS(   {
-               "bool"   :  true ,
+               "active"   :  true ,
                "obj"  :  {
-                    "boolean_field" : true  ,
-                    "arr":  [false, true, false]
+                    "flag" : true  ,
+                    "states":  [false, true, false]
                },
-               "obj_more": {
-                    "int": 1234,
-                    "string":   "fuumuuuu",
-                    "float":3.14
+               "child": {
+                    "count": 1234,
+                    "msg":   "fuumuuuu",
+                    "temp":3.14
                },
                "bf":false}
           )JS";

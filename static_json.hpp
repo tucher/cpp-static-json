@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <array>
 #include <trie.hpp>
+#include <iostream>
 
 using namespace std;
 
@@ -143,7 +144,7 @@ public:
 using Bool = BaseBool<bool>;
 
 template <std::size_t MaxDigits, typename FPType>
-class Double {
+class BaseDouble {
     FPType m_value = 0;
 public:
     static constexpr std::size_t StrSize = MaxDigits + 2;
@@ -151,7 +152,7 @@ public:
     operator FPType&() {
         return m_value;
     }
-    Double & operator=(FPType v) {
+    BaseDouble & operator=(FPType v) {
         m_value = v;
         return *this;
     }
@@ -195,6 +196,8 @@ public:
         return skipWS(it, end);
     }
 };
+using Double = BaseDouble<12, double>;
+
 
 template <std::size_t LengthMax>
 class String {
@@ -257,7 +260,7 @@ public:
 };
 
 template <std::size_t MaxDigits, typename IntT>
-class Int {
+class BaseInt {
     IntT m_value = 0;
 
     void u64toa_naive(uint64_t value, char* buffer) {
@@ -330,6 +333,8 @@ public:
         return skipWS(it, end);
     }
 };
+
+using Int = BaseInt<10, int32_t>;
 
 template <typename ...Members>
 class Array {
@@ -418,7 +423,7 @@ public:
 };
 
 template <typename SSName, typename Obj>
-struct WithName{
+struct N{
     using Name = SSName;
     using MemberT = Obj;
     MemberT member;
@@ -472,19 +477,45 @@ struct WithName{
     }
 };
 
+template <typename OutPairs, typename FieldPairMembers, typename TT = void>
+struct repacker{};
+
+template <typename ...OutPairs, typename Name, typename Member, typename ...rest>
+struct repacker<std::tuple<OutPairs...>,  std::tuple<Name, Member, rest...>, enable_if_t<is_ss_v<Name>>> :
+        repacker<std::tuple<OutPairs..., N<Name, Member>>, std::tuple<rest...>>
+{
+    static_assert ( is_ss_v<Name>);
+};
+
+template <typename ...OutPairs, typename LastName, typename LastMember>
+struct repacker<std::tuple<OutPairs...>, std::tuple<LastName, LastMember>, enable_if_t<is_ss_v<LastName>>>{
+    using type = std::tuple<OutPairs..., N<LastName, LastMember>>;
+    using names =  std::tuple<typename OutPairs::Name..., LastName>;
+};
+
+template <typename ... PairsNames, typename ... PairsMembers>
+struct repacker<std::tuple<>, std::tuple<N<PairsNames, PairsMembers>...>, enable_if_t<sizeof... (PairsNames) == sizeof... (PairsNames)>>{
+    using type = std::tuple<N<PairsNames, PairsMembers>...>;
+    using names =  std::tuple<PairsNames...>;
+};
+
+
 template <typename ...Members>
 class Object {
-    using MemberTupleT = std::tuple<Members...>;
+    public:
+    using repacked = repacker<std::tuple<>, std::tuple<Members...>>;
+    using MemberTupleT =  typename repacked::type;
+    using Names = typename repacked::names;
     MemberTupleT m_members;
 
 
     template <typename> struct IsWithName : std::false_type { };
-    template <typename SS, typename MemberT> struct IsWithName<WithName<SS, MemberT>> : std::true_type { };
+    template <typename SS, typename MemberT> struct IsWithName<N<SS, MemberT>> : std::true_type { };
 
-    static_assert((true && ... && IsWithName<Members>::value), "Please, use WithName wrapper to create object members");
+//    static_assert((true && ... && IsWithName<Members>::value), "Please, use N wrapper to create object members");
 
-    using Trie = StaticTrie::Trie<typename Members::Name...>;
-
+    using Trie = StaticTrie::Trie<Names>;
+private:
     template<typename OtherT, std::size_t ... Is>
     bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
 //        using OT = std::decay_t<OtherT>;
@@ -492,16 +523,18 @@ class Object {
         bool valsCorrect =  (true && ... && (std::get<Is>(other.m_members).member == std::get<Is>(m_members).member));
         return namesCorrect && valsCorrect;
     }
+    template <typename M1, typename M2> struct comparator {constexpr static bool value = M1::Name::Size < M2::Name::Size;};
 
 
-    constexpr static size_t MinKeyL = StaticMin(Members::Name::Size...);
-    constexpr static size_t MaxKeyL = StaticMax(Members::Name::Size...);
+    constexpr static size_t MinKeyL = min_finder_t<MemberTupleT, comparator>::Name::Size;
+    constexpr static size_t MaxKeyL = max_finder_t<MemberTupleT, comparator>::Name::Size;
 
-
+    template <typename S> struct sizeCounter{};
+    template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t StrSize = (0 + ... + S::StrSize);};
 public:
 
-    static constexpr std::size_t  Length = sizeof... (Members);
-    static constexpr std::size_t StrSize = 2 + Length - 1 + (0 + ... + Members::StrSize);
+    static constexpr std::size_t  Length = std::tuple_size_v<MemberTupleT>;
+    static constexpr std::size_t StrSize = 2 + Length - 1 + sizeCounter<MemberTupleT>::StrSize;
 
     template<std::size_t index>
     auto & at() {
@@ -542,6 +575,16 @@ public:
         //props finding
 
         auto clb = [&](Iter & it, auto matchInfo) -> bool {
+            using MatchInfo = decltype (matchInfo);
+            cout << "Matched: " << endl;
+            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
+                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
+            });
+            cout << endl;
+            if constexpr(matchInfo.hasFull) {
+                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
+            }
+
             if constexpr(matchInfo.hasFull) {
                 ++it;
                 if(it == end) return false;
@@ -592,6 +635,10 @@ public:
     bool operator==(const OtherT & other) const {
         return cmp_helper(other, std::make_index_sequence<Length>());
     }
+
+//    void print(int indent) {
+//        std;
+//    }
 };
 
 template <typename RootObj>

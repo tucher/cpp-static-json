@@ -68,14 +68,17 @@ template <typename S1, typename S2, std::size_t Index> struct CharAtIndexCompara
     static constexpr bool value = ss_char_getter_v<Index, typename S1::ItemT> < ss_char_getter_v<Index, typename S2::ItemT>;
 };
 
+template <typename S1, typename S2> struct StringSizeComparator {
+    static constexpr bool value = S1::ItemT::Size < S2::ItemT::Size;
+};
+
 template <std::size_t I,  typename ... StringWithIndex>
 struct TrieLayer<I, std::tuple<StringWithIndex...>,
-        std::enable_if_t< (sizeof...(StringWithIndex) > 1 && I < max_finder_v<std::tuple<StringWithIndex...>,SizeExtractor >) >
+        std::enable_if_t< (sizeof...(StringWithIndex) > 1 && I < max_finder_t<std::tuple<StringWithIndex...>,StringSizeComparator >::ItemT::Size) >
 >
 {
-    private:
     using InputStringTuple = std::tuple<StringWithIndex ...>;
-    public:
+
     using ThisStrings = sorted_tuple_t  <
         InputStringTuple,
         StringComparator
@@ -97,12 +100,10 @@ struct TrieLayer<I, std::tuple<StringWithIndex...>,
 
 template <std::size_t I, typename ... StringWithIndex>
 struct TrieLayer<I, std::tuple<StringWithIndex...>,
-        std::enable_if_t< (sizeof...(StringWithIndex) == 1 || I == max_finder_v<std::tuple<StringWithIndex ...>, SizeExtractor>) >
+        std::enable_if_t< (sizeof...(StringWithIndex) == 1 || I == max_finder_t<std::tuple<StringWithIndex...>,StringSizeComparator >::ItemT::Size) >
 >
 {
-    private:
     using InputStringTuple = std::tuple<StringWithIndex ...>;
-    public:
     using ThisStrings = InputStringTuple;
     using NodeString = std::tuple_element_t<0, ThisStrings>;
 

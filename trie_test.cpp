@@ -147,11 +147,27 @@ using strings2 = std::tuple <
     SS("acgp4")
 >;
 
+using strings4 = std::tuple <
+    SS("state"),
+    SS("flag")
+
+>;
+using Trie = StaticTrie::Trie<strings4>;
+static_assert (Trie::L::Last == false);
+static_assert (std::tuple_element_t<0, Trie::L::NextNodes>::Key == 's');
+static_assert (std::tuple_element_t<1, Trie::L::NextNodes>::Key == 'f');
+
+static_assert (std::tuple_element_t<0, Trie::L::NextNodes>::Layer::Last == true);
+static_assert (std::tuple_element_t<1, Trie::L::NextNodes>::Layer::Last == true);
+
+static_assert (is_same_v<std::tuple_element_t<0, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("state")>);
+static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("flag")>);
+
 
 int test_trie(char *data, size_t size) {
 
     int result = -1;
-    auto clb = [&](auto matchInfo) -> bool {
+    auto clb = [&](auto & it, auto matchInfo) -> bool {
 
         using MatchInfo = decltype (matchInfo);
 //        cout << "Matched: " << endl;
@@ -168,7 +184,7 @@ int test_trie(char *data, size_t size) {
         }
         return true;
     };
-    using Trie = StaticTrie::Trie<strings>;
+
 
 
     //Iter endedAt = trie::search(bg, end, clb);

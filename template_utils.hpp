@@ -138,41 +138,35 @@ namespace min_finder_test {
 
 /////////////FIND MAXIMUM TYPE by ::value MEMBER IN TUPLE
 
-template<class ElemsTuple, template<typename> class Extractor, typename TTT = void>
+template<class ElemsTuple, template<typename, typename> class Comparator, typename TTT = void>
 struct max_finder {
     static_assert (!std::is_same_v<TTT, void>, "Use std::tuple<Elem1, Elem2 ...> please");
 };
 
-template<template<typename> class Extractor, class Elem>
-struct max_finder<std::tuple<Elem>, Extractor> {
+template<template<typename, typename> class Comparator, class Elem>
+struct max_finder<std::tuple<Elem>, Comparator> {
     using type = Elem;
-    static constexpr auto value = Extractor<Elem>::value;
 };
 
-template<template<typename> class Extractor, class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Extractor, std::enable_if_t<(Extractor<ElemFirst>::value > Extractor<ElemSecond>::value)>>:
-        max_finder<std::tuple<ElemFirst, ElemsRest...>, Extractor> {};
+template<template<typename, typename> class Comparator, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Comparator, std::enable_if_t<(Comparator<ElemFirst, ElemSecond>::value == false)>>:
+        max_finder<std::tuple<ElemFirst, ElemsRest...>, Comparator> {};
 
-template<template<typename> class Extractor, class ElemFirst, class ElemSecond, class ... ElemsRest>
-struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Extractor, std::enable_if_t< Extractor<ElemFirst>::value <= Extractor<ElemSecond>::value>>:
-        max_finder<std::tuple<ElemSecond, ElemsRest...>, Extractor> {};
+template<template<typename, typename> class Comparator, class ElemFirst, class ElemSecond, class ... ElemsRest>
+struct max_finder<std::tuple<ElemFirst, ElemSecond, ElemsRest...>, Comparator, std::enable_if_t< Comparator<ElemFirst, ElemSecond>::value == true>>:
+        max_finder<std::tuple<ElemSecond, ElemsRest...>, Comparator> {};
 
-template<class Tuple, template<typename> class Extractor = DefaulExtractor>
-using max_finder_t =  typename max_finder<Tuple, Extractor>::type;
-template<class Tuple, template<typename> class Extractor = DefaulExtractor>
-static constexpr auto max_finder_v =  max_finder<Tuple, Extractor>::value;
-
+template<class Tuple, template<typename, typename> class Comparator = DefaulCompare>
+using max_finder_t =  typename max_finder<Tuple, Comparator>::type;
 
 namespace max_finder_test {
     template <int V = 0, class T = void> struct Elem{ static constexpr int erverv = V; using Type = T;};
 
-    template <typename In=void>
-    struct Extractor {static constexpr int value = In::erverv;};
+    template <typename In1, typename In2>
+    struct Comparator {static constexpr int value = In1::erverv < In2::erverv;};
     using seq = std::tuple<Elem<2, int>, Elem<16, float>, Elem<8, bool>>;
-    static_assert (max_finder_v<seq, Extractor> == 16);
-    static_assert (std::is_same_v<max_finder_t<seq, Extractor>::Type, float>);
-    static_assert (std::is_same_v<max_finder_t<seq, Extractor>::Type, float>);
-
+    static_assert (max_finder_t<seq, Comparator>::erverv == 16);
+    static_assert (std::is_same_v<max_finder_t<seq, Comparator>::Type, float>);
 }
 
 /////////////SORT TYPES TUPLE ASCENDING BY ::value MEMBER
