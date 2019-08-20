@@ -531,6 +531,12 @@ private:
 
     template <typename S> struct sizeCounter{};
     template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t StrSize = (0 + ... + S::StrSize);};
+
+    template <typename Iter>
+    void eatBadField(Iter& it, Iter end) {
+
+    }
+
 public:
 
     static constexpr std::size_t  Length = std::tuple_size_v<MemberTupleT>;
@@ -567,60 +573,74 @@ public:
         }
        *it  = '}';
     }
+
+
     template <typename Iter>
     Iter Deserialise(Iter& it, Iter end) {
         it = skipWSUntil(it, end, '{');
         if(it == end) return end;
          ++it;
         //props finding
-
-        auto clb = [&](Iter & it, auto matchInfo) -> bool {
+        bool fieldConsumed = false;
+        std::size_t index = 0;
+        auto clb = [&](auto matchInfo) -> char {
+            index ++;
             using MatchInfo = decltype (matchInfo);
-            cout << "Matched: " << endl;
-            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
-                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
-            });
-            cout << endl;
-            if constexpr(matchInfo.hasFull) {
-                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
-            }
+//            cout << "Matched: " << endl;
+//            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
+//                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
+//            });
+//            cout << endl;
+//            if constexpr(matchInfo.hasFull) {
+//                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
+//            }
 
             if constexpr(matchInfo.hasFull) {
-                ++it;
-                if(it == end) return false;
+                if(it == end) return -1;
                 if constexpr(matchInfo.isLast) {
-                    while(*it != '"' && it != end) ++ it;
+                    while(index-1 < std::tuple_element_t<matchInfo.index, Names>::Size && it != end) {
+                        if (std::tuple_element_t<matchInfo.index, Names>::to_str()[index-1] != *it) {
+                            return -1;
+                        }
+                        ++index;
+                        ++ it;
+                    }
                 }
-                if(it == end) return false;
+                if(it == end) return -1;
                 if(*it != '"') {
-                    return true;
+                    return *it;
                 }
 
                 ++it;
-                if(it == end) return false;
+                if(it == end) return -1;
                 it = skipWSUntil(it, end, ':');
-                if(it == end) return false;
+                if(it == end) return -1;
                 ++it;
                 it = skipWS(it, end);
-                if(it == end) return false;
+                if(it == end) return -1;
                 it = std::get<matchInfo.index>(m_members).member.Deserialise(it, end);
-                return false;
+                fieldConsumed = true;
+                return -1;
             } else
                 ++it;
-            return true;
+
+            return *it;
         };
 
         do {
-
+            index = 0;
             it = skipWSUntil(it, end, '"');
             if(it == end) return end;
             ++it;
-            Trie::search(it, end, clb);
+            Trie::search(*it, clb);
 
             if(it == end) return end;
             it = skipWS(it, end);
             if(it == end) return end;
-
+            if(!fieldConsumed) {
+                eatBadField(it, end);
+            }
+            if(it == end) return end;
             if(*it == ',') {
                 ++it;
                 it = skipWS(it, end);

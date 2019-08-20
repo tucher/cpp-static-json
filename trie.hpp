@@ -133,11 +133,9 @@ struct StaticTrie<std::tuple<IndexedStrings...>/*, std::enable_if_t<
         static constexpr bool isLast = IsLast;
         static constexpr std::size_t index = I;
     };
-    template<class Iter, class Clb>
-    static Iter search (Iter &iter, Iter end, Clb clb ) {
+    template<class Clb>
+    static void search (char symbol, Clb clb ) {
         bool to_continue = true;
-        char symbol = *iter;
-//        int counter = 0;
         auto searcher= [&]( auto & layer, const auto & self) -> void{
             using Item =  std::remove_reference_t<decltype (layer)>;
             using LT = typename Item::Layer;
@@ -145,20 +143,18 @@ struct StaticTrie<std::tuple<IndexedStrings...>/*, std::enable_if_t<
 
             if(!to_continue || key != symbol) return;
 
-            to_continue = clb(iter, MatchRes<LT::Last, LT::HasFullString,
+            symbol = clb(MatchRes<LT::Last, LT::HasFullString,
                               LT::NodeString::I,
                               typename LT::ThisStrings, typename LT::NodeString::ItemT>{}
                               );
+            if(symbol==-1) to_continue = false;
+
             if constexpr(LT::Last) to_continue = false;
             if(to_continue) {
-                symbol = * iter;
-                if (iter == end) to_continue = false;
                 iterateTuple(typename LT::NextNodes(), self, self);
             }
-//            counter ++;
         };
         iterateTuple(typename L::NextNodes(), searcher, searcher);
-        return iter;
     }
 };
 

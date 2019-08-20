@@ -165,10 +165,11 @@ static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::Nod
 
 
 int test_trie(char *data, size_t size) {
+    using Trie = StaticTrie::Trie<strings>;
 
     int result = -1;
-    auto clb = [&](auto & it, auto matchInfo) -> bool {
-
+    auto clb = [&](auto matchInfo) -> char {
+        data ++;
         using MatchInfo = decltype (matchInfo);
 //        cout << "Matched: " << endl;
 //        iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
@@ -180,9 +181,9 @@ int test_trie(char *data, size_t size) {
 //        }
         if constexpr(matchInfo.hasFull) {
             result = matchInfo.index;
-            return false;
+            return -1;
         }
-        return true;
+        return *data;
     };
 
 
@@ -190,7 +191,7 @@ int test_trie(char *data, size_t size) {
     //Iter endedAt = trie::search(bg, end, clb);
     //cout << "Search ended at " << endedAt -bg << endl;
 
-    auto r = Trie::search(data, data + size, clb);
+    Trie::search(*data, clb);
 //    cout << "Search ended at pos " << r - data << " of data " << data << endl;
     return result;
 }
