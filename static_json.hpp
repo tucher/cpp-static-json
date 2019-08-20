@@ -33,7 +33,7 @@ template<typename TargetT, typename TypeLikeT>
 using OptionalRef = Opt<TargetT, TypeLikeT, use_ref_v <TargetT, TypeLikeT>>;
 
 template <typename Iter>
-Iter skipWSUntil(Iter it, Iter end, char c) {
+inline Iter skipWSUntil(Iter it, Iter end, char c) {
     while(it != end) {
         char ch = *it;
         if(ch == c) return it;
@@ -44,7 +44,7 @@ Iter skipWSUntil(Iter it, Iter end, char c) {
 }
 
 template <typename Iter>
-Iter skipWS(Iter it, Iter end) {
+inline Iter skipWS(Iter it, Iter end) {
     while(it != end && std::isspace(*it) ) {
         ++it;
     }
@@ -52,7 +52,7 @@ Iter skipWS(Iter it, Iter end) {
 }
 
 template <typename Iter, typename Pred>
-Iter skipWSUntil(Iter it, Iter end, Pred c) {
+inline Iter skipWSUntil(Iter it, Iter end, Pred c) {
     while(it != end) {
         bool p = c(*it);
         if(p) return it;
@@ -533,8 +533,101 @@ private:
     template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t StrSize = (0 + ... + S::StrSize);};
 
     template <typename Iter>
-    void eatBadField(Iter& it, Iter end) {
+    void skipObject(Iter& it, Iter end) {
+    }
 
+
+    template <typename Iter>
+    void skipArray(Iter& it, Iter end) {
+    }
+
+
+    template <typename Iter>
+    void skipJSON(Iter& it, Iter end) {
+        if (it == end) return;
+        char c = *it;
+        switch(c) {
+        case '{':
+        {
+            skipObject(it, end);
+            break;
+        }
+        case '[':
+        {
+            skipArray(it, end);
+            break;
+        }
+        case 't':
+        {
+            ++it;
+            if(it != end && *it != 'r') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'u') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'e') {it = end; return;}
+            ++it;
+            break;
+        }
+        case 'f':
+        {
+            ++it;
+            if(it != end && *it != 'a') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'l') {it = end; return;}
+            ++it;
+            if(it != end && *it != 's') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'e') {it = end; return;}
+            ++it;
+            break;
+        }
+        case 'n':
+        {
+            ++it;
+            if(it != end && *it != 'u') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'l') {it = end; return;}
+            ++it;
+            if(it != end && *it != 'l') {it = end; return;}
+            ++it;
+            break;
+        }
+        case '-':
+            case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+        {
+            if(*it == '-') {
+                ++it;
+                if(it == end) return;
+            }
+            if(!(*it >= '0'&& *it <= '9'))  {it = end; return;}
+            ++it;
+            bool hasDot = false;
+            while(it != end && !(isspace(*it) || *it == '}' || *it == ']' || *it == ',')) {
+                if(!(*it >= '0'&& *it <= '9') && *it != '.')  {it = end; return;}
+                if (*it == '.') {
+                    if(hasDot) {it = end; return;}
+                    hasDot = true;
+                }
+                ++it;
+            }
+            break;
+        }
+        case '"':
+        {
+            ++it;
+            while(it != end && *it != '"') {
+                if(*it == '\\') {it = end; return;}
+                if(!std::isprint(*it)) {it = end; return;}
+                ++it;
+            }
+            if(it != end && *it == '"') ++it;
+            break;
+        }
+        default:
+            it = end;
+            ;
+        }
+        it = skipWS(it, end);
     }
 
 public:
@@ -633,13 +726,21 @@ public:
             if(it == end) return end;
             ++it;
             Trie::search(*it, clb);
+            if(!fieldConsumed) {
+                while(*it != '"' && it != end) ++it;
+                if(it == end) return end;
+                ++it;
+                it = skipWS(it, end);
+                if (*it != ':') return end;
+                ++it;
+                it = skipWS(it, end);
+                if(it == end) return end;
 
+                skipJSON(it, end);
+                if(it == end) return end;
+            }
             if(it == end) return end;
             it = skipWS(it, end);
-            if(it == end) return end;
-            if(!fieldConsumed) {
-                eatBadField(it, end);
-            }
             if(it == end) return end;
             if(*it == ',') {
                 ++it;

@@ -161,6 +161,12 @@ int main(int , char **argv) {
     obj2.at<0>() = true;
     cout << "obj == obj2: "<<( obj == obj2) << endl;
     static constexpr char d[] = R"JS(   {
+            "no_field1": "ffuuu",
+            "no_field2": true,
+            "no_field3": false,
+            "no_field4": 3.14,
+            "no_field5": 3,
+            "no_field6": null,
                "active"   :  true ,
                "obj"  :  {
                     "flag" : true  ,
