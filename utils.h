@@ -2,23 +2,29 @@
 #define UTILS_H
 #include <iostream>
 class Iter {
-    const char *m_d = 0;
+    char *m_d = 0;
     std::size_t m_size = 0;
     std::size_t pos = 0;
+    char * current;
 public:
 
-    Iter(const char *d, std::size_t size, std::size_t offs = 0):m_d(d), m_size(size), pos(offs) {
+    Iter( char *d, std::size_t size, std::size_t offs = 0):m_d(d), m_size(size), pos(offs) {
         (void)m_size;
     }
     void operator++() {
         pos++;
+        current = ( m_d + pos);
     }
-    Iter& operator+=(std::size_t offs) {
-        pos+=offs;
-        return *this;
+//    Iter& operator+=(std::size_t offs) {
+//        pos+=offs;
+//        return *this;
+//    }
+    inline const char & operator*() const {
+//        std::cout << "Read at " << pos << std::endl;
+        return *( m_d + pos);
     }
-    const char & operator*() {
-        std::cout << "Read at " << pos << std::endl;
+    inline char & operator*() {
+//        std::cout << "Write at " << pos << std::endl;
         return *( m_d + pos);
     }
     bool operator==(Iter other) {return other.m_d==m_d&&other.pos == pos;}

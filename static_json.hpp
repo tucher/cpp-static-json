@@ -14,6 +14,10 @@
 using namespace std;
 
 namespace  StaticJSON {
+
+static constexpr std::size_t SkipNestedStructuresLimit = 20;
+
+
 using namespace SString;
 
 template <typename TypeT, typename TypeLikeT, bool> struct Opt {
@@ -33,56 +37,215 @@ template<typename TargetT, typename TypeLikeT>
 using OptionalRef = Opt<TargetT, TypeLikeT, use_ref_v <TargetT, TypeLikeT>>;
 
 template <typename Iter>
-inline Iter skipWSUntil(Iter it, Iter end, char c) {
+inline void skipWSUntil(Iter & it, Iter end, char c) {
     while(it != end) {
         char ch = *it;
-        if(ch == c) return it;
-        else if(!std::isspace(ch)) return end;
+        if(ch == c) return;
+        else if(!std::isspace(ch)) {it = end; return;}
         ++it;
     }
-    return end;
 }
 
 template <typename Iter>
-inline Iter skipWS(Iter it, Iter end) {
+inline void skipWS(Iter & it, Iter end) {
     while(it != end && std::isspace(*it) ) {
         ++it;
     }
-    return it;
 }
 
 template <typename Iter, typename Pred>
-inline Iter skipWSUntil(Iter it, Iter end, Pred c) {
+inline void skipWSUntil(Iter & it, Iter end, Pred c) {
     while(it != end) {
         bool p = c(*it);
-        if(p) return it;
-        else if(!std::isspace(*it) && !p) return end;
+        if(p) return;
+        else if(!std::isspace(*it) && !p) {it = end; return;}
 
         ++it;
     }
-    return end;
+}
+
+template <typename Iter>
+void skipJSON(Iter& it, Iter end, std::size_t currentDepth);
+
+template <typename Iter>
+void skipObject(Iter& it, Iter end, std::size_t currentDepth) {
+    if(*it != '{'){it = end; return;}
+    currentDepth ++;
+    if(currentDepth > SkipNestedStructuresLimit) {it = end; return;}
+    ++it;
+    skipWS(it, end);
+    if(it == end) return;
+
+    while(*it != '}' && it != end) {
+        skipWSUntil(it, end, '"');
+        if(it == end) return;
+        ++it;
+        while(it != end && *it != '"') {
+            if(*it == '\\') {it = end; return;}
+            if(!std::isprint(*it)) {it = end; return;}
+            ++it;
+        }
+        if(it == end) { return;}
+        ++it;
+        if(it == end) {return;}
+        skipWSUntil(it, end, ':');
+        if(it == end) return;
+        ++it;
+        if(it == end) return;
+        skipWS(it, end);
+        if(it == end) return;
+
+        skipJSON(it, end, currentDepth);
+        skipWS(it, end);
+        if(it == end) return;
+        if(*it == ',') {
+            ++it;
+            if(it == end) return;
+            skipWS(it, end);
+            if(it == end) return;
+        } else if(*it != '}')  {
+            it = end; return;
+        }
+    }
+    if(it == end) return;
+    ++it;
+    if(it == end) return;
+    skipWS(it, end);
+}
+
+
+template <typename Iter>
+void skipArray(Iter& it, Iter end, std::size_t currentDepth) {
+    if(*it != '['){it = end; return;}
+    currentDepth ++;
+    if(currentDepth > SkipNestedStructuresLimit) {it = end; return;}
+    ++it;
+    skipWS(it, end);
+    if(it == end) return;
+
+    while(*it != ']' && it != end) {
+        skipJSON(it, end, currentDepth);
+        skipWS(it, end);
+        if(it == end) return;
+        if(*it == ',') {
+            ++it;
+            if(it == end) return;
+            skipWS(it, end);
+            if(it == end) return;
+        } else if(*it != ']')  {
+            it = end; return;
+        }
+    }
+    if(it == end) return;
+    ++it;
+    if(it == end) return;
+    skipWS(it, end);
+}
+
+
+template <typename Iter>
+void skipJSON(Iter& it, Iter end, std::size_t currentDepth) {
+    if (it == end) return;
+    char c = *it;
+    switch(c) {
+    case '{':
+    {
+        skipObject(it, end, currentDepth);
+        break;
+    }
+    case '[':
+    {
+        skipArray(it, end, currentDepth);
+        break;
+    }
+    case 't':
+    {
+        ++it;
+        if(it != end && *it != 'r') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'u') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'e') {it = end; return;}
+        ++it;
+        break;
+    }
+    case 'f':
+    {
+        ++it;
+        if(it != end && *it != 'a') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'l') {it = end; return;}
+        ++it;
+        if(it != end && *it != 's') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'e') {it = end; return;}
+        ++it;
+        break;
+    }
+    case 'n':
+    {
+        ++it;
+        if(it != end && *it != 'u') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'l') {it = end; return;}
+        ++it;
+        if(it != end && *it != 'l') {it = end; return;}
+        ++it;
+        break;
+    }
+    case '-':
+    case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+    {
+        if(*it == '-') {
+            ++it;
+            if(it == end) return;
+        }
+        if(!(*it >= '0'&& *it <= '9'))  {it = end; return;}
+        ++it;
+        bool hasDot = false;
+        while(it != end && !(isspace(*it) || *it == '}' || *it == ']' || *it == ',')) {
+            if(!(*it >= '0'&& *it <= '9') && *it != '.')  {it = end; return;}
+            if (*it == '.') {
+                if(hasDot) {it = end; return;}
+                hasDot = true;
+            }
+            ++it;
+        }
+        break;
+    }
+    case '"':
+    {
+        ++it;
+        while(it != end && *it != '"') {
+            if(*it == '\\') {it = end; return;}
+            if(!std::isprint(*it)) {it = end; return;}
+            ++it;
+        }
+        if(it != end && *it == '"') ++it;
+        break;
+    }
+    default:
+        it = end;
+        ;
+    }
+    skipWS(it, end);
 }
 
 template<typename BoolLikeT = bool>
 class BaseBool {
-
-
-//    template <bool B> struct ValType : Opt<B>
-//    {
-//        double y;
-//    };
     using DT = OptionalRef<bool, BoolLikeT>;
     DT m_value;
 
 public:
-
+    bool wasSet = false;
+    void ClearSetFlag() {wasSet = false;}
     template<typename U = BoolLikeT>
     BaseBool(bool v = false, typename std::enable_if_t<!use_ref_v<bool, U>>* = 0) : m_value{v} { }
 
     template<typename U = BoolLikeT>
     BaseBool(U & v, typename std::enable_if_t<use_ref_v<bool, U&>>* = 0) : m_value{v} { }
 
-    static constexpr std::size_t StrSize = 5;
+    static constexpr std::size_t MaxStrSize = 5;
     operator BoolLikeT&() {
         return m_value.v;
     }
@@ -94,24 +257,24 @@ public:
         return *this;
     }
     template <typename Iter>
-    void Serialise(Iter it) {
+    void Serialise(Iter & it) {
         if(bool(m_value.v)) {
-            *it = 't'; ++it;
+            *it = 't';++it;
             *it = 'r';++it;
             *it = 'u';++it;
             *it = 'e';++it;
-            *it = ' ';
         } else {
             *it = 'f';++it;
             *it = 'a';++it;
             *it = 'l';++it;
             *it = 's';++it;
-            *it = 'e';
+            *it = 'e';++it;
         }
     }
     template <typename Iter>
-    Iter Deserialise(Iter & it, Iter end) {
-        if(it = skipWSUntil(it, end, [](char c){return c == 'f' || c == 't';}); it == end) return end;
+    void Deserialise(Iter & it, Iter end) {
+        skipWSUntil(it, end, [](char c){return c == 'f' || c == 't';});
+        if(it == end) return;
         char t[] = "rue";
         char f[] = "alse";
         char *cmp = 0;
@@ -124,16 +287,16 @@ public:
         }
         ++it;
         for(; *cmp != 0 && it != end; cmp ++) {
-            if(*it != *cmp) return end;
+            if(*it != *cmp)  {it = end; return;}
             ++it;
         }
-        if(it == end) return end;
-        if(*cmp != 0) return end;
+        if(it == end) return;
+        if(*cmp != 0)  {it = end; return;}
 
-        if(it = skipWS(it, end); it == end) return end;
+        skipWS(it, end);
+        if( it == end) return;
         m_value.v = to_assign;
-
-        return it;
+        wasSet = true;
     }
     template<typename T >
     bool operator==(const T & other) const {
@@ -147,7 +310,9 @@ template <std::size_t MaxDigits, typename FPType>
 class BaseDouble {
     FPType m_value = 0;
 public:
-    static constexpr std::size_t StrSize = MaxDigits + 2;
+    bool wasSet = false;
+    void ClearSetFlag() {wasSet = false;}
+    static constexpr std::size_t MaxStrSize = MaxDigits + 2;
 
     operator FPType&() {
         return m_value;
@@ -157,43 +322,44 @@ public:
         return *this;
     }
     template <typename Iter>
-    void Serialise(Iter it) {
-        char b[StrSize+1];
-        std::size_t r = std::snprintf(b, StrSize+1, "%g", m_value);
+    void Serialise(Iter & it) {
+        char b[MaxStrSize+1];
+        std::size_t r = std::snprintf(b, MaxStrSize+1, "%g", m_value);
 
-        for(std::size_t i = 0; i < r; i ++) {
+        for(std::size_t i = 0; i < r && i < MaxStrSize; i ++) {
             *it = b[i];
             ++it;
         }
-        for(std::size_t i = r; i < StrSize; i++) {
-            *it = ' ';
-            ++it;
-        }
+
     }
     template<typename T >
     bool operator==(const T & other) const {
         return other.m_value == m_value;
     }
     template <typename Iter>
-    Iter Deserialise(Iter & it, Iter end) {
-        if(it = skipWS(it, end); it == end) return end;
+    void Deserialise(Iter & it, Iter end) {
+        skipWS(it, end);
+        if(it == end) return;
         char buf[20];
         int l = 0;
-        while(!std::isspace(*it)) {
+        char s = *it;
+        while(!std::isspace(s) && s != '}' && s != ']' && s != ','&&it != end) {
             buf[l] = *it;
             ++it;
             ++l;
+            s = *it;
         }
+        if(it == end) return;
         buf[l] = 0;
 
         char *ptr = 0;
         m_value = std::strtod(buf, &ptr);
         if(ptr == buf) {
             m_value = 0;
-            return end;
+             {it = end; return;}
         }
-        it += ptr - buf;
-        return skipWS(it, end);
+        skipWS(it, end);
+        wasSet = true;
     }
 };
 using Double = BaseDouble<12, double>;
@@ -203,7 +369,10 @@ template <std::size_t LengthMax>
 class String {
     std::array<char, LengthMax> m_value;
 public:
-    static constexpr std::size_t StrSize = LengthMax+2;
+    bool wasSet = false;
+    void ClearSetFlag() {wasSet = false;}
+
+    static constexpr std::size_t MaxStrSize = LengthMax+2;
     String(const char * v = "") {
         *this = v;
     }
@@ -221,20 +390,15 @@ public:
         return *this;
     }
     template <typename Iter>
-    void Serialise(Iter it) {
-        std::size_t i = 0;
+    void Serialise(Iter & it) {
         *it = '"';
         ++it;
-        for(; i < LengthMax && m_value[i] != 0; i++) {
+        for(std::size_t i = 0; i < LengthMax && m_value[i] != 0; i++) {
             *it = m_value[i];
             ++it;
         }
         *it = '"';
         ++it;
-        for(std::size_t j = i; j < LengthMax; j ++) {
-            *it = ' ';
-            ++it;
-        }
     }
     template<typename T >
     bool operator==(const T & other) const {
@@ -242,20 +406,21 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter& it, Iter end) {
-        if(it = skipWSUntil(it, end, '"'); it == end) return end;
+    void Deserialise(Iter& it, Iter end) {
+        skipWSUntil(it, end, '"');
+        if(it == end) return;
         ++it;
         std::size_t i = 0;
         while(*it != '"' && it != end) {
             m_value[i] = *it;
             ++it;
             i++;
-            if (i >= LengthMax) return end;
+            if (i >= LengthMax) it =  end;
         }
-        if(it == end) return end;
+        if(it == end) return;
         if (i < LengthMax - 1) m_value[i] = 0;
         ++it;
-        return it;
+        wasSet = true;
     }
 };
 
@@ -263,33 +428,11 @@ template <std::size_t MaxDigits, typename IntT>
 class BaseInt {
     IntT m_value = 0;
 
-    void u64toa_naive(uint64_t value, char* buffer) {
-        char temp[StrSize+1];
-        char *p = temp;
-        do {
-            *p++ = char(value % 10) + '0';
-            value /= 10;
-        } while (value > 0);
-
-        do {
-            *buffer++ = *--p;
-        } while (p != temp);
-
-//        *buffer = '\0';
-    }
-
-    void i64toa_naive(int64_t value, char* buffer) {
-
-        uint64_t u = static_cast<uint64_t>(value);
-        if (value < 0) {
-            *buffer++ = '-';
-            u = ~u + 1;
-        }
-        u64toa_naive(u, buffer);
-    }
-
 public:
-    static constexpr std::size_t StrSize = MaxDigits + 1;
+    bool wasSet = false;
+    void ClearSetFlag() {wasSet = false;}
+
+    static constexpr std::size_t MaxStrSize = MaxDigits + 1;
     operator IntT&() {
         return m_value;
     }
@@ -298,13 +441,24 @@ public:
         return *this;
     }
     template <typename Iter>
-    void Serialise(Iter it) {
-        auto f = it;
-        for(std::size_t i = 0; i < StrSize; i++) {
-                    *it = ' ';
-                    ++it;
-                }
-        i64toa_naive(m_value, f);
+    void Serialise(Iter & it) {
+        uint64_t u = static_cast<uint64_t>(m_value);
+        if (m_value < 0) {
+            *it = '-';
+            ++it;
+            u = ~u + 1;
+        }
+        char temp[MaxStrSize+1];
+        char *p = temp;
+        do {
+            *p++ = char(u % 10) + '0';
+            u /= 10;
+        } while (u > 0);
+
+        do {
+            *it = *--p;
+            ++it;
+        } while (p != temp);
     }
     template<typename T >
     bool operator==(const T & other) const {
@@ -312,32 +466,40 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter &it, Iter end) {
-        if(it = skipWS(it, end); it == end) return end;
+    void Deserialise(Iter &it, Iter end) {
+        skipWS(it, end);
+        if(it == end) return;
         char buf[20];
         int l = 0;
-        while(!std::isspace(*it)) {
-            buf[l] = *it;
+        char s = *it;
+        while(!std::isspace(s) && s != '}' && s != ']' && s != ','&&it != end) {
+            buf[l] = s;
             ++it;
             ++l;
+            s = *it;
         }
+        if(it == end) return;
         buf[l] = 0;
 
         char *ptr = 0;
         m_value = std::strtoll(buf, &ptr, 10);
         if(ptr == buf) {
             m_value = 0;
-            return end;
+            it= end;
+            return;
         }
-        it += ptr - buf;
-        return skipWS(it, end);
+        skipWS(it, end);
+        wasSet = true;
     }
 };
 
 using Int = BaseInt<10, int32_t>;
 
+
+
 template <typename ...Members>
 class Array {
+protected:
     std::tuple<Members...> m_members;
 
     template<typename OtherT, std::size_t ... Is>
@@ -345,9 +507,14 @@ class Array {
         return (true && ... && (std::get<Is>(other.m_members) == std::get<Is>(m_members)));
     }
 public:
+    bool wasSet = false;
+    void ClearSetFlag() {
+        wasSet = false;
+        foreach([](auto &ch){ch.ClearSetFlag();});
+    }
     static constexpr std::size_t  Length = sizeof... (Members);
 
-    static constexpr std::size_t StrSize = 2 + Length - 1 + (0 + ... + Members::StrSize);
+    static constexpr std::size_t MaxStrSize = 2 + Length - 1 + (0 + ... + Members::MaxStrSize);
     template<std::size_t index>
     auto & at() {
         static_assert (index < Length, "Out of range");
@@ -357,26 +524,25 @@ public:
     void foreach(Callable &&c) {
         iterateTuple(m_members, c);
     }
-     template <typename Iter>
-    void Serialise(Iter it) {
+    template <typename Iter>
+    void Serialise(Iter & it) {
         *it = '[';
         ++it;
         if constexpr (Length > 0) {
             bool first = true;
             at<0>().Serialise(it);
-            it += at<0>().StrSize;
             foreach([&](auto &m) {
-                if(first) {
+                    if(first) {
                     first = false;
                     return;
-                }
-                *it = ',';
-                ++it;
-                m.Serialise(it);
-                it += m.StrSize;
-            });
         }
-       *it  = ']';
+                    *it = ',';
+                    ++it;
+                    m.Serialise(it);
+        });
+        }
+        *it  = ']';
+        ++it;
     }
     template <typename OtherT>
     bool operator==(const OtherT & other) const {
@@ -384,43 +550,65 @@ public:
     }
 
     template <typename Iter>
-    Iter Deserialise(Iter &it, Iter end) {
-        it = skipWSUntil(it, end, '[');
-        if(it == end) return end;
-         ++it;
+    void Deserialise(Iter &it, Iter end) {
+        ClearSetFlag();
+        skipWSUntil(it, end, '[');
+        if(it == end) return;
+        ++it;
+        if(it == end) {return;}
+        skipWS(it, end);
+        if(it == end) {return;}
+        if(*it == ']') {
+            wasSet = true;
+            ++it; return;
+        }
         std::size_t filled = 0;
         bool err = false;
 
         foreach(
                 [&](auto &v){
                 if(err || *it == ']') return ;
-                 Iter cur =  v.Deserialise(it, end);
-                if(cur != end) {
-                    filled ++;
-                    while(cur != end && *cur != ']' && *cur != ',') ++cur;
-                    if(cur == end) {err = true; return;}
-                    if(*cur == ',') ++cur;
-
-                    it = cur;
-                    it = skipWS(it, end);
+                v.Deserialise(it, end);
+                if(it == end) {err = true; return;}
+                skipWS(it, end);
+                if(it == end) {err = true; return;}
+                if(*it == ',') {
+                    ++it;
                     if(it == end) {err = true; return;}
-                } else {
-                    err = true;
+                }else if(*it != ']')  {
+                    it = end; return;
                 }
+                skipWS(it, end);
+                if(it == end) {err = true; return;}
         });
 
         if (filled < Length) {
             //TODO mark other fields as uninit
         }
-        if(err) return end;
-
-        if(*it != ']' ) return end;
-        if(it == end) return end;
+        if(err) {it = end; return;}
+        while(*it != ']' && it != end) {
+            skipWS(it, end);
+            if(it == end) return;
+            skipJSON(it, end, 0);
+            if(it == end) return;
+            skipWS(it, end);
+            if(*it == ',') {
+                ++it;
+                if(it == end) {err = true; return;}
+            }else if(*it != ']')  {
+                it = end; return;
+            }
+        }
+        if(*it != ']' ) {it = end; return;}
+        if(it == end) return;
         ++it;
-        it = skipWS(it, end);
-        return it;
+        skipWS(it, end);
+        wasSet = true;
+        return;
     }
 };
+template <typename ... Members>
+class Array<std::tuple<Members...>>:public Array<Members...> {};
 
 template <typename SSName, typename Obj>
 struct N{
@@ -428,13 +616,13 @@ struct N{
     using MemberT = Obj;
     MemberT member;
 
-    static constexpr std::size_t StrSize =
-            + MemberT::StrSize // value
+    static constexpr std::size_t MaxStrSize =
+            + MemberT::MaxStrSize // value
             + Name::Size //name
-            + ( 1 + 2) // colon and quates
+            + ( 1 + 2) // colon and quotes
             ;
     template <typename Iter>
-    void Serialise(Iter it) {
+    void Serialise(Iter & it) {
         *it = '"';
         ++it;
         for(std::size_t i = 0; i < Name::Size; i ++) {
@@ -446,29 +634,6 @@ struct N{
         *it = ':';
         ++it;
         member.Serialise(it);
-    }
-    template <typename Iter>
-    Iter Deserialise(Iter &it, Iter end) {
-        it = skipWSUntil(it, end, '"');
-        if(it == end) return end;
-
-        ++it;
-        for(std::size_t i = 0; i < Name::Size && it != end; i++) {
-            if(Name::to_str()[i] != *it) {
-                return end;
-            }
-            ++it;
-        }
-        if(it == end) return end;
-        it = skipWSUntil(it, end, '"');
-        if(it == end) return end;
-        ++it;
-        it = skipWSUntil(it, end, ':');
-        if(it == end) return end;
-        ++it;
-        it = skipWS(it, end);
-        if(it == end) return end;
-        return member.Deserialise(it, end);
     }
 
     template <typename OtherT>
@@ -495,14 +660,14 @@ struct repacker<std::tuple<OutPairs...>, std::tuple<LastName, LastMember>, enabl
 
 template <typename ... PairsNames, typename ... PairsMembers>
 struct repacker<std::tuple<>, std::tuple<N<PairsNames, PairsMembers>...>, enable_if_t<sizeof... (PairsNames) == sizeof... (PairsNames)>>{
-    using type = std::tuple<N<PairsNames, PairsMembers>...>;
-    using names =  std::tuple<PairsNames...>;
+                                                                                                                                        using type = std::tuple<N<PairsNames, PairsMembers>...>;
+                                                                                                                                        using names =  std::tuple<PairsNames...>;
 };
 
 
 template <typename ...Members>
 class Object {
-    public:
+public:
     using repacked = repacker<std::tuple<>, std::tuple<Members...>>;
     using MemberTupleT =  typename repacked::type;
     using Names = typename repacked::names;
@@ -512,13 +677,13 @@ class Object {
     template <typename> struct IsWithName : std::false_type { };
     template <typename SS, typename MemberT> struct IsWithName<N<SS, MemberT>> : std::true_type { };
 
-//    static_assert((true && ... && IsWithName<Members>::value), "Please, use N wrapper to create object members");
+    //    static_assert((true && ... && IsWithName<Members>::value), "Please, use N wrapper to create object members");
 
     using Trie = StaticTrie::Trie<Names>;
 private:
     template<typename OtherT, std::size_t ... Is>
     bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
-//        using OT = std::decay_t<OtherT>;
+        //        using OT = std::decay_t<OtherT>;
         bool namesCorrect =  (true && ... && ( compare_v<typename tuple_element_t<Is, typename OtherT::MemberTupleT>::Name, typename tuple_element_t<Is, MemberTupleT>::Name>));
         bool valsCorrect =  (true && ... && (std::get<Is>(other.m_members).member == std::get<Is>(m_members).member));
         return namesCorrect && valsCorrect;
@@ -530,115 +695,23 @@ private:
     constexpr static size_t MaxKeyL = max_finder_t<MemberTupleT, comparator>::Name::Size;
 
     template <typename S> struct sizeCounter{};
-    template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t StrSize = (0 + ... + S::StrSize);};
-
-    template <typename Iter>
-    void skipObject(Iter& it, Iter end) {
-    }
-
-
-    template <typename Iter>
-    void skipArray(Iter& it, Iter end) {
-    }
-
-
-    template <typename Iter>
-    void skipJSON(Iter& it, Iter end) {
-        if (it == end) return;
-        char c = *it;
-        switch(c) {
-        case '{':
-        {
-            skipObject(it, end);
-            break;
-        }
-        case '[':
-        {
-            skipArray(it, end);
-            break;
-        }
-        case 't':
-        {
-            ++it;
-            if(it != end && *it != 'r') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'u') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'e') {it = end; return;}
-            ++it;
-            break;
-        }
-        case 'f':
-        {
-            ++it;
-            if(it != end && *it != 'a') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'l') {it = end; return;}
-            ++it;
-            if(it != end && *it != 's') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'e') {it = end; return;}
-            ++it;
-            break;
-        }
-        case 'n':
-        {
-            ++it;
-            if(it != end && *it != 'u') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'l') {it = end; return;}
-            ++it;
-            if(it != end && *it != 'l') {it = end; return;}
-            ++it;
-            break;
-        }
-        case '-':
-            case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-        {
-            if(*it == '-') {
-                ++it;
-                if(it == end) return;
-            }
-            if(!(*it >= '0'&& *it <= '9'))  {it = end; return;}
-            ++it;
-            bool hasDot = false;
-            while(it != end && !(isspace(*it) || *it == '}' || *it == ']' || *it == ',')) {
-                if(!(*it >= '0'&& *it <= '9') && *it != '.')  {it = end; return;}
-                if (*it == '.') {
-                    if(hasDot) {it = end; return;}
-                    hasDot = true;
-                }
-                ++it;
-            }
-            break;
-        }
-        case '"':
-        {
-            ++it;
-            while(it != end && *it != '"') {
-                if(*it == '\\') {it = end; return;}
-                if(!std::isprint(*it)) {it = end; return;}
-                ++it;
-            }
-            if(it != end && *it == '"') ++it;
-            break;
-        }
-        default:
-            it = end;
-            ;
-        }
-        it = skipWS(it, end);
-    }
+    template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t MaxStrSize = (0 + ... + S::MaxStrSize);};
 
 public:
 
+    bool wasSet = false;
+    void ClearSetFlag() {
+        wasSet = false;
+        foreach([](auto &ch){ch.member.ClearSetFlag();});
+    }
     static constexpr std::size_t  Length = std::tuple_size_v<MemberTupleT>;
-    static constexpr std::size_t StrSize = 2 + Length - 1 + sizeCounter<MemberTupleT>::StrSize;
+    static constexpr std::size_t MaxStrSize = 2 + Length - 1 + sizeCounter<MemberTupleT>::MaxStrSize;
 
-    template<std::size_t index>
+    template<typename SS>
     auto & at() {
-        static_assert (index < Length, "Out of range");
-        return std::get<index>(m_members).member;
+        static_assert (is_ss_v<SS>, "Use static string as key");
+        static_assert (type_in_tuple_v<SS, Names>, "Static json object property not found");
+        return std::get<tuple_first_type_index_v<SS, Names>>(m_members).member;
     }
     template<typename Callable>
     void foreach(Callable &&c) {
@@ -646,47 +719,52 @@ public:
     }
 
     template <typename Iter>
-    void Serialise(Iter it) {
+    void Serialise(Iter & it) {
         *it = '{';
         ++it;
         if constexpr (Length > 0) {
             bool first = true;
             std::get<0>(m_members).Serialise(it);
-            it += std::get<0>(m_members).StrSize;
             foreach([&](auto &m) {
-                if(first) {
+                    if(first) {
                     first = false;
                     return;
-                }
-                *it = ',';
-                ++it;
-                m.Serialise(it);
-                it += m.StrSize;
-            });
+            }
+                    *it = ',';
+                    ++it;
+                    m.Serialise(it);
+        });
         }
-       *it  = '}';
+        *it  = '}';
+        ++it;
     }
 
 
     template <typename Iter>
-    Iter Deserialise(Iter& it, Iter end) {
-        it = skipWSUntil(it, end, '{');
-        if(it == end) return end;
-         ++it;
+    void Deserialise(Iter& it, Iter end) {
+        ClearSetFlag();
+        skipWSUntil(it, end, '{');
+        if(it == end) return;
+        ++it;
+        skipWS(it, end);
+        if(*it == '}') {
+            wasSet = true;
+            ++it; return;
+        }
         //props finding
         bool fieldConsumed = false;
         std::size_t index = 0;
         auto clb = [&](auto matchInfo) -> char {
             index ++;
-            using MatchInfo = decltype (matchInfo);
-//            cout << "Matched: " << endl;
-//            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
-//                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
-//            });
-//            cout << endl;
-//            if constexpr(matchInfo.hasFull) {
-//                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
-//            }
+//            using MatchInfo = decltype (matchInfo);
+            //            cout << "Matched: " << endl;
+            //            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
+            //                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
+            //            });
+            //            cout << endl;
+            //            if constexpr(matchInfo.hasFull) {
+            //                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
+            //            }
 
             if constexpr(matchInfo.hasFull) {
                 if(it == end) return -1;
@@ -706,60 +784,64 @@ public:
 
                 ++it;
                 if(it == end) return -1;
-                it = skipWSUntil(it, end, ':');
+                skipWSUntil(it, end, ':');
                 if(it == end) return -1;
                 ++it;
-                it = skipWS(it, end);
+                skipWS(it, end);
                 if(it == end) return -1;
-                it = std::get<matchInfo.index>(m_members).member.Deserialise(it, end);
+                std::get<matchInfo.index>(m_members).member.Deserialise(it, end);
                 fieldConsumed = true;
                 return -1;
             } else
-                ++it;
+            ++it;
 
             return *it;
         };
 
         do {
             index = 0;
-            it = skipWSUntil(it, end, '"');
-            if(it == end) return end;
+            fieldConsumed = false;
+            skipWSUntil(it, end, '"');
+            if(it == end) return;
             ++it;
             Trie::search(*it, clb);
             if(!fieldConsumed) {
                 while(*it != '"' && it != end) ++it;
-                if(it == end) return end;
+                if(it == end) return;
                 ++it;
-                it = skipWS(it, end);
-                if (*it != ':') return end;
+                skipWS(it, end);
+                if (*it != ':') {it = end; return;}
                 ++it;
-                it = skipWS(it, end);
-                if(it == end) return end;
+                skipWS(it, end);
+                if(it == end) return;
 
-                skipJSON(it, end);
-                if(it == end) return end;
+                skipJSON(it, end, 0);
+                if(it == end) return;
             }
-            if(it == end) return end;
-            it = skipWS(it, end);
-            if(it == end) return end;
+            if(it == end) return;
+            skipWS(it, end);
+            if(it == end) return;
             if(*it == ',') {
                 ++it;
-                it = skipWS(it, end);
+                skipWS(it, end);
+            } else if(*it != '}')  {
+                it = end; return;
             }
         } while(*it != '}' && it!=end);
-        if(*it != '}') return end;
+        if(*it != '}')  {it = end; return;}
         ++it;
-        it = skipWS(it, end);
-        return it;
+        skipWS(it, end);
+        wasSet = true;
+        return;
     }
     template <typename OtherT>
     bool operator==(const OtherT & other) const {
         return cmp_helper(other, std::make_index_sequence<Length>());
     }
 
-//    void print(int indent) {
-//        std;
-//    }
+    //    void print(int indent) {
+    //        std;
+    //    }
 };
 
 template <typename RootObj>
@@ -768,7 +850,7 @@ class Serialiser {
 
 public:
     Serialiser(RootObj & obj):m_obj(obj) {}
-    static constexpr std::size_t StrSize = RootObj::StrSize;
+    static constexpr std::size_t MaxStrSize = RootObj::MaxStrSize;
 
     template<typename Iter>
     void Serialise(Iter it) {

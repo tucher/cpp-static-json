@@ -30,22 +30,29 @@ void iterateTuple(const std::tuple<Ts...> & tuple, F && func, Args...args){
 /////////////FIND TYPE INDEX IN TUPLE//////
 
 template<std::size_t CurrIndex, class T, class TupleT, typename TTT=void >
-struct tuple_first_type_index;
+struct tuple_first_type_index {
+    static constexpr bool not_found = true;
+};
 
 template<std::size_t CurrIndex, class T,  class Head, class... Tail>
 struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enable_if_t<!std::is_same_v<Head, T>>>
-    : tuple_first_type_index<CurrIndex+1, T, std::tuple<Tail...>> {};
+    : tuple_first_type_index<CurrIndex+1, T, std::tuple<Tail...>> {
+};
 
 template<std::size_t CurrIndex, class T,  class Head, class... Tail >
 struct tuple_first_type_index<CurrIndex, T, std::tuple<Head, Tail...>, std::enable_if_t<std::is_same_v<Head, T>>> {
     static constexpr std::size_t value = CurrIndex;
+    static constexpr bool not_found = false;
 };
 
 template <class T, class TupleT>
 constexpr std::size_t tuple_first_type_index_v = tuple_first_type_index<0, T, TupleT>::value;
+template <class T, class TupleT>
+constexpr bool type_in_tuple_v = !tuple_first_type_index<0, T, TupleT>::not_found;
 
 static_assert (tuple_first_type_index_v<int, std::tuple<float, bool, int, int>> == 2, "works");
-
+static_assert (type_in_tuple_v<int, std::tuple<float, bool, int, int>>, "works");
+static_assert (!type_in_tuple_v<double, std::tuple<float, bool, int, int>>, "works");
 
 /////////////EXTRACT TYPES SUBTUPLE FROM TUPLE////////////
 
@@ -436,6 +443,7 @@ struct indexer<I, std::tuple<IndexedTypes...>, FirstItem,  OtherItems...>:
 template <typename ... SrcT>
 using indexed_types_t = typename indexer<0, std::tuple<>, SrcT...>::type;
 
+namespace  indexed_types_test{
 using indexed_types_test = indexed_types_t<std::tuple<int, float, double>>;
 
 static_assert (std::tuple_element_t<0, indexed_types_test>::I == 0);
@@ -445,6 +453,19 @@ static_assert (std::tuple_element_t<2, indexed_types_test>::I == 2);
 static_assert (std::is_same_v<int, std::tuple_element_t<0, indexed_types_test>::ItemT>);
 static_assert (std::is_same_v<float, std::tuple_element_t<1, indexed_types_test>::ItemT>);
 static_assert (std::is_same_v<double, std::tuple_element_t<2, indexed_types_test>::ItemT>);
+}
 
+template <std::size_t N, typename T, typename Out> struct repeater{};
+template <std::size_t N, typename T, typename ...OutT> struct repeater<N, T, std::tuple<OutT...>>:
+    repeater<N-1, T,std::tuple<OutT..., T> >
+{};
 
+template <typename T, typename ...OutT> struct repeater<0, T, std::tuple<OutT...>> {
+    using type = std::tuple<OutT...>;
+};
+template<std::size_t N, typename T>
+using repeater_t = typename repeater<N, T, std::tuple<>>::type;
+namespace repeater_t_test {
+static_assert (std::is_same_v<repeater_t<5, bool>, std::tuple<bool, bool, bool, bool, bool>> );
+}
 #endif // TEMPLATE_UTILS_H

@@ -4,7 +4,6 @@
 #define FFUUU
 #ifdef FFUUU
 using namespace StaticJSON;
-
 class BoolLike {
     bool m_val;
 public:
@@ -59,29 +58,33 @@ std::int64_t measureTime(Callable &&function) {
 void measureSlowSer() {
     Msg1Type obj;
 
-    obj.at<1>() = "something";
-    obj.at<0>().at<1>() =  5000001;
-    obj.at<0>().at<2>() = 42;
-    obj.at<0>().at<3>().at<1>() = 101452;
-    obj.at<0>().at<3>().at<2>() = "foo moo";
+    obj.at<SS("error")>() = "something";
+    obj.at<SS("props")>().at<1>() =  5000001;
+    obj.at<SS("props")>().at<2>() = 42;
+    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("active")>() = -101452;
+    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("name")>() = "foo moo";
+    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("size")>() = 666;
 
-    char output[Msg1Type::StrSize+1];
-    for(std::size_t i = 0; i < Msg1Type::StrSize; i ++)output[i] = 'X';
+    char output[Msg1Type::MaxStrSize+1];
+    for(std::size_t i = 0; i < Msg1Type::MaxStrSize; i ++)output[i] = 'X';
+
+    auto bg = Iter((char*)output, Msg1Type::MaxStrSize+1);
+    auto end = Iter((char*)output, Msg1Type::MaxStrSize+1, Msg1Type::MaxStrSize+1);
 
     Serialiser s(obj);
-    s.Serialise(output);
-    output[Msg1Type::StrSize] = 0;
+    s.Serialise(bg);
+    output[Msg1Type::MaxStrSize] = 0;
     cout << "serialisation output" << endl << output << endl;
 
-    auto pass = [ &s]() {
-        for(int i = 0; i < 10000000; i ++) {
-            char output[Msg1Type::StrSize+1];
-            s.Serialise(output);
-        }
-    };
-    auto us = measureTime(pass);
+//    auto pass = [ &s]() {
+//        for(int i = 0; i < 10000000; i ++) {
+//            char output[Msg1Type::MaxStrSize+1];
+//            s.Serialise(output);
+//        }
+//    };
+//    auto us = measureTime(pass);
 
-    std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
+//    std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
 }
 
 #endif
@@ -101,9 +104,9 @@ int main(int , char **argv) {
     }
 //    bool v = jsonBool;
 
-    cout << "Msg1Type::StrSize " << Msg1Type::StrSize << endl;
+    cout << "Msg1Type::MaxStrSize " << Msg1Type::MaxStrSize << endl;
 
-//     measureSlowSer();
+     measureSlowSer();
 
     using Msg1Type =
             Object<
@@ -139,7 +142,9 @@ int main(int , char **argv) {
                     SS("count"), Int,
                     SS("temp"), Double,
                     SS("msg"), String<10>
-                >
+                >,
+                SS("too_many"), Array<Int, Int, Int>,
+                SS("too_few"), Array<repeater_t<5, Object<SS("t"), Bool>>>
               >
            ;
 
@@ -156,9 +161,9 @@ int main(int , char **argv) {
 //    static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("flag")>);
 
     Msg2Type obj;
-    obj.at<0>() = true;
+    obj.at<SS("bf")>() = true;
     Msg2Type obj2;
-    obj2.at<0>() = true;
+    obj2.at<SS("bf")>() = true;
     cout << "obj == obj2: "<<( obj == obj2) << endl;
     static constexpr char d[] = R"JS(   {
             "no_field1": "ffuuu",
@@ -168,6 +173,7 @@ int main(int , char **argv) {
             "no_field5": 3,
             "no_field6": null,
                "active"   :  true ,
+            "no_field7": ["ffuuu", true, false, 3.14, 3, null],
                "obj"  :  {
                     "flag" : true  ,
                     "states":  [false, true, false]
@@ -175,31 +181,47 @@ int main(int , char **argv) {
                "child": {
                     "count": 1234,
                     "msg":   "fuumuuuu",
+                    "no_field8": {"active"   :  true , "obj"  :  {"flag" : true  , "states":  [false, true, false] }, "child": {"count": 1234,    "msg":   "fuumuuuu" ,          "temp":3.14},"bf":false},
                     "temp":3.14
                },
-               "bf":false}
+               "bf":false,
+               "too_many": [10, 11,12, 3, 4, 5],
+            "too_few": [{},{},{}]
+
+
+        }
           )JS";
     Msg2Type checker;
-    checker.at<0>() = false;
-    checker.at<1>().at<0>().at<0>() = false;
-    checker.at<1>().at<0>().at<1>() = true;
-    checker.at<1>().at<0>().at<2>() = false;
-    checker.at<1>().at<1>() = true;
-    checker.at<2>() = true;
-    checker.at<3>().at<0>() = 1234;
-    checker.at<3>().at<1>() = 3.14;
-    checker.at<3>().at<2>() = "fuumuuuu";
+    checker.at<SS("bf")>() = false;
+    checker.at<SS("obj")>().at<SS("states")>().at<0>() = false;
+    checker.at<SS("obj")>().at<SS("states")>().at<1>() = true;
+    checker.at<SS("obj")>().at<SS("states")>().at<2>() = false;
+    checker.at<SS("obj")>().at<SS("flag")>() = true;
+    checker.at<SS("active")>() = true;
+    checker.at<SS("child")>().at<SS("count")>() = 1234;
+    checker.at<SS("child")>().at<SS("temp")>() = 3.14;
+    checker.at<SS("child")>().at<SS("msg")>() = "fuumuuuu";
+    checker.at<SS("too_many")>().at<0>() = 10;
+    checker.at<SS("too_many")>().at<1>() = 11;
+    checker.at<SS("too_many")>().at<2>() = 12;
 
 
-    auto bg = Iter(d, sizeof (d)-1);
-    auto end = Iter(d, sizeof (d)-1, sizeof (d)-1);
-    if(auto it = obj.Deserialise(bg, end); it == end) {
+    auto bg = Iter((char*)d, sizeof (d));
+    auto end = Iter((char*)d, sizeof (d), sizeof (d));
+
+    obj.Deserialise(bg, end);
+    if( bg != end) {
         cout << "Deser success" << endl;
     } else {
         cout << "Deser error";
     }
 
-    if(obj == checker) {
+    bool setFlag =  obj.at<SS("too_few")>().at<0>().wasSet &&
+    obj.at<SS("too_few")>().at<1>().wasSet &&
+    obj.at<SS("too_few")>().at<2>().wasSet &&
+    !obj.at<SS("too_few")>().at<3>().wasSet &&
+    !obj.at<SS("too_few")>().at<4>().wasSet ;
+    if(obj == checker&& setFlag) {
         cout << "Deser correct" << endl;;
     } else {
         cout << "Deser INCORRECT" << endl;;
