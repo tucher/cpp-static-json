@@ -4,8 +4,8 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 SOURCES += \
-        main.cpp
-#        trie_test.cpp
+        main.cpp \
+        trie_test.cpp
 CONFIG += force_debug_info
 
 

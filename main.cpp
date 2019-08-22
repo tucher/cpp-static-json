@@ -22,23 +22,23 @@ public:
 };
 using Msg1Type =
         Object<
-            SS("props"), Array<
+            TS("props"), Array<
                 Bool,
                 Int,
                 Int,
                 Object<
-                    SS("flag1"), Bool,
-                    SS("counter"), Int,
-                    SS("msg"), String<10>,
-                    SS("string"), Object<
-                        N<SS("active"), Bool>,
-                        N<SS("size"), Int>,
-                        N<SS("name"), String<10>>
+                    TS("flag1"), Bool,
+                    TS("counter"), Int,
+                    TS("msg"), String<10>,
+                    TS("string"), Object<
+                        N<TS("active"), Bool>,
+                        N<TS("size"), Int>,
+                        N<TS("name"), String<10>>
                     >
                 >
                 >
             ,
-            SS("error"), String<10>
+            TS("error"), String<10>
           >
        ;
 
@@ -58,12 +58,12 @@ std::int64_t measureTime(Callable &&function) {
 void measureSlowSer() {
     Msg1Type obj;
 
-    obj.at<SS("error")>() = "something";
-    obj.at<SS("props")>().at<1>() =  5000001;
-    obj.at<SS("props")>().at<2>() = 42;
-    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("active")>() = -101452;
-    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("name")>() = "foo moo";
-    obj.at<SS("props")>().at<3>().at<SS("string")>().at<SS("size")>() = 666;
+    obj.at<TS("error")>() = "something";
+    obj.at<TS("props")>().at<1>() =  5000001;
+    obj.at<TS("props")>().at<2>() = 42;
+    obj.at<TS("props")>().at<3>().at<TS("string")>().at<TS("active")>() = -101452;
+    obj.at<TS("props")>().at<3>().at<TS("string")>().at<TS("name")>() = "foo moo";
+    obj.at<TS("props")>().at<3>().at<TS("string")>().at<TS("size")>() = 666;
 
     char output[Msg1Type::MaxStrSize+1];
     for(std::size_t i = 0; i < Msg1Type::MaxStrSize; i ++)output[i] = 'X';
@@ -92,6 +92,12 @@ void measureSlowSer() {
 
 int test_trie(char *data, size_t size);
 
+template <auto TS>
+struct TestSS {
+  using SST = decltype (TS);
+
+};
+
 int main(int , char **argv) {
     std::size_t s = 0; while(argv[1][s] != 0) s ++;
 //    return test_trie(argv[1], s);
@@ -111,41 +117,41 @@ int main(int , char **argv) {
 
     using Msg1Type =
             Object<
-                SS("array"), Array<
+                TS("array"), Array<
                     Bool,
                     Int,
                     Int,
                     Object<
-                        SS("boolean_field"), Bool,
-                        SS("int_field"), Int>,
-                        SS("string"), String<10>,
-                        SS("string"), Object<
-                            SS("boolean_field"), Bool,
-                            SS("int_field"), Int,
-                            SS("string"), String<10>
+                        TS("boolean_field"), Bool,
+                        TS("int_field"), Int>,
+                        TS("string"), String<10>,
+                        TS("string"), Object<
+                            TS("boolean_field"), Bool,
+                            TS("int_field"), Int,
+                            TS("string"), String<10>
                         >
                     >
                 ,
-                SS("string"), String<10>
+                TS("string"), String<10>
             >
            ;
     Msg1Type ();
 
     using Msg2Type =
             Object<
-                SS("bf"), Bool,
-                SS("obj"), Object<
-                    SS("states"), Array<Bool, Bool, Bool>,
-                    SS("flag"), Bool
+                TS("bf"), Bool,
+                TS("obj"), Object<
+                    TS("states"), Array<Bool, Bool, Bool>,
+                    TS("flag"), Bool
                 >,
-                SS("active"), Bool,
-                SS("child"), Object<
-                    SS("count"), Int,
-                    SS("temp"), Double,
-                    SS("msg"), String<10>
+                TS("active"), Bool,
+                TS("child"), Object<
+                    TS("count"), Int,
+                    TS("temp"), Double,
+                    TS("msg"), String<10>
                 >,
-                SS("too_many"), Array<Int, Int, Int>,
-                SS("too_few"), Array<repeater_t<5, Object<SS("t"), Bool>>>
+                TS("too_many"), Array<Int, Int, Int>,
+                TS("too_few"), Array<TypeCalc::repeater_t<5, Object<TS("t"), Bool>>>
               >
            ;
 
@@ -158,13 +164,13 @@ int main(int , char **argv) {
 //    static_assert (std::tuple_element_t<0, Trie::L::NextNodes>::Layer::Last == true);
 //    static_assert (std::tuple_element_t<1, Trie::L::NextNodes>::Layer::Last == true);
 
-//    static_assert (is_same_v<std::tuple_element_t<0, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("state")>);
-//    static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, SS("flag")>);
+//    static_assert (is_same_v<std::tuple_element_t<0, Trie::L::NextNodes>::Layer::NodeString::ItemT, TS("state")>);
+//    static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, TS("flag")>);
 
     Msg2Type obj;
-    obj.at<SS("bf")>() = true;
+    obj.at<TS("bf")>() = true;
     Msg2Type obj2;
-    obj2.at<SS("bf")>() = true;
+    obj2.at<TS("bf")>() = true;
     cout << "obj == obj2: "<<( obj == obj2) << endl;
     static constexpr char d[] = R"JS(   {
             "no_field1": "ffuuu",
@@ -193,18 +199,18 @@ int main(int , char **argv) {
         }
           )JS";
     Msg2Type checker;
-    checker.at<SS("bf")>() = false;
-    checker.at<SS("obj")>().at<SS("states")>().at<0>() = false;
-    checker.at<SS("obj")>().at<SS("states")>().at<1>() = true;
-    checker.at<SS("obj")>().at<SS("states")>().at<2>() = false;
-    checker.at<SS("obj")>().at<SS("flag")>() = true;
-    checker.at<SS("active")>() = true;
-    checker.at<SS("child")>().at<SS("count")>() = 1234;
-    checker.at<SS("child")>().at<SS("temp")>() = 3.14;
-    checker.at<SS("child")>().at<SS("msg")>() = "fuumuuuu";
-    checker.at<SS("too_many")>().at<0>() = 10;
-    checker.at<SS("too_many")>().at<1>() = 11;
-    checker.at<SS("too_many")>().at<2>() = 12;
+    checker.at<TS("bf")>() = false;
+    checker.at<TS("obj")>().at<TS("states")>().at<0>() = false;
+    checker.at<TS("obj")>().at<TS("states")>().at<1>() = true;
+    checker.at<TS("obj")>().at<TS("states")>().at<2>() = false;
+    checker.at<TS("obj")>().at<TS("flag")>() = true;
+    checker.at<TS("active")>() = true;
+    checker.at<TS("child")>().at<TS("count")>() = 1234;
+    checker.at<TS("child")>().at<TS("temp")>() = 3.14;
+    checker.at<TS("child")>().at<TS("msg")>() = "fuumuuuu";
+    checker.at<TS("too_many")>().at<0>() = 10;
+    checker.at<TS("too_many")>().at<1>() = 11;
+    checker.at<TS("too_many")>().at<2>() = 12;
 
 
     auto bg = Iter((char*)d, sizeof (d));
@@ -217,11 +223,11 @@ int main(int , char **argv) {
         cout << "Deser error";
     }
 
-    bool setFlag =  obj.at<SS("too_few")>().at<0>().wasSet &&
-    obj.at<SS("too_few")>().at<1>().wasSet &&
-    obj.at<SS("too_few")>().at<2>().wasSet &&
-    !obj.at<SS("too_few")>().at<3>().wasSet &&
-    !obj.at<SS("too_few")>().at<4>().wasSet ;
+    bool setFlag =  obj.at<TS("too_few")>().at<0>().wasSet &&
+    obj.at<TS("too_few")>().at<1>().wasSet &&
+    obj.at<TS("too_few")>().at<2>().wasSet &&
+    !obj.at<TS("too_few")>().at<3>().wasSet &&
+    !obj.at<TS("too_few")>().at<4>().wasSet ;
     if(obj == checker&& setFlag) {
         cout << "Deser correct" << endl;;
     } else {

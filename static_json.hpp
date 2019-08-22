@@ -1,10 +1,9 @@
 #ifndef STATIC_JSON_HPP
 #define STATIC_JSON_HPP
 
-#include <tuple>
+#include "../template-tools/trie/trie.hpp"
 #include "../template-tools/typestring/typestring.hpp"
 #include "../template-tools/typecalc/typecalc.hpp"
-#include "../template-tools/trie/trie.hpp"
 #include <cstdio>
 #include  <cctype>
 #include <cstdlib>
@@ -522,7 +521,7 @@ public:
     }
     template<typename Callable>
     void foreach(Callable &&c) {
-        iterateTuple(m_members, c);
+        TypeCalc::iterateTuple(m_members, c);
     }
     template <typename Iter>
     void Serialise(Iter & it) {
@@ -626,7 +625,7 @@ struct N{
         *it = '"';
         ++it;
         for(std::size_t i = 0; i < Name::Size; i ++) {
-            *it = Name::to_str()[i];
+            *it = Name::c_str()[i];
             ++it;
         }
         *it = '"';
@@ -675,7 +674,7 @@ public:
 
 
     template <typename> struct IsWithName : std::false_type { };
-    template <typename SS, typename MemberT> struct IsWithName<N<SS, MemberT>> : std::true_type { };
+    template <typename TS, typename MemberT> struct IsWithName<N<TS, MemberT>> : std::true_type { };
 
     //    static_assert((true && ... && IsWithName<Members>::value), "Please, use N wrapper to create object members");
 
@@ -691,8 +690,8 @@ private:
     template <typename M1, typename M2> struct comparator {constexpr static bool value = M1::Name::Size < M2::Name::Size;};
 
 
-    constexpr static size_t MinKeyL = min_finder_t<MemberTupleT, comparator>::Name::Size;
-    constexpr static size_t MaxKeyL = max_finder_t<MemberTupleT, comparator>::Name::Size;
+    constexpr static size_t MinKeyL = TypeCalc::min_finder_t<MemberTupleT, comparator>::Name::Size;
+    constexpr static size_t MaxKeyL = TypeCalc::max_finder_t<MemberTupleT, comparator>::Name::Size;
 
     template <typename S> struct sizeCounter{};
     template <typename ...S> struct sizeCounter<std::tuple<S...>>{static constexpr std::size_t MaxStrSize = (0 + ... + S::MaxStrSize);};
@@ -707,15 +706,15 @@ public:
     static constexpr std::size_t  Length = std::tuple_size_v<MemberTupleT>;
     static constexpr std::size_t MaxStrSize = 2 + Length - 1 + sizeCounter<MemberTupleT>::MaxStrSize;
 
-    template<typename SS>
+    template<typename TS>
     auto & at() {
-        static_assert (TypeString::is_ss_v<SS>, "Use  typestring as key");
-        static_assert (type_in_tuple_v<SS, Names>, "Static json object property not found");
-        return std::get<tuple_first_type_index_v<SS, Names>>(m_members).member;
+        static_assert (TypeString::is_ss_v<TS>, "Use  typestring as key");
+        static_assert (TypeCalc::type_in_tuple_v<TS, Names>, "Static json object property not found");
+        return std::get<TypeCalc::tuple_first_type_index_v<TS, Names>>(m_members).member;
     }
     template<typename Callable>
     void foreach(Callable &&c) {
-        iterateTuple(m_members, c);
+        TypeCalc::iterateTuple(m_members, c);
     }
 
     template <typename Iter>
@@ -759,18 +758,18 @@ public:
 //            using MatchInfo = decltype (matchInfo);
             //            cout << "Matched: " << endl;
             //            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
-            //                cout << "\t " << decltype (s)::ItemT::to_str() << endl;
+            //                cout << "\t " << decltype (s)::ItemT::c_str() << endl;
             //            });
             //            cout << endl;
             //            if constexpr(matchInfo.hasFull) {
-            //                cout << "Full Node string: " << MatchInfo::NodeString::to_str() << endl;
+            //                cout << "Full Node string: " << MatchInfo::NodeString::c_str() << endl;
             //            }
 
             if constexpr(matchInfo.hasFull) {
                 if(it == end) return -1;
                 if constexpr(matchInfo.isLast) {
                     while(index-1 < std::tuple_element_t<matchInfo.index, Names>::Size && it != end) {
-                        if (std::tuple_element_t<matchInfo.index, Names>::to_str()[index-1] != *it) {
+                        if (std::tuple_element_t<matchInfo.index, Names>::c_str()[index-1] != *it) {
                             return -1;
                         }
                         ++index;
