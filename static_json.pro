@@ -8,11 +8,14 @@ SOURCES += \
 #        trie_test.cpp
 CONFIG += force_debug_info
 
+
 HEADERS += \
     static_json.hpp \
-    template_utils.hpp \
     trie.hpp \
-    utils.h
+    utils.h \
+    ../template-tools/typestring/typestring.hpp \
+    ../template-tools/typecalc/typecalc.hpp \
+    ../template-tools/trie/trie.hpp
 
 QMAKE_CXXFLAGS += "-Wno-gnu-string-literal-operator-template"
 #QMAKE_LFLAGS += "--strip-all"

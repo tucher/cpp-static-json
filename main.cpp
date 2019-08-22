@@ -73,6 +73,7 @@ void measureSlowSer() {
 
     Serialiser s(obj);
     s.Serialise(bg);
+    *bg = 0;
     output[Msg1Type::MaxStrSize] = 0;
     cout << "serialisation output" << endl << output << endl;
 

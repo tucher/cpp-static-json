@@ -2,13 +2,13 @@
 #define STATIC_JSON_HPP
 
 #include <tuple>
-#include "../comadapterdriver/utils/static_string.h"
-#include "template_utils.hpp"
+#include "../template-tools/typestring/typestring.hpp"
+#include "../template-tools/typecalc/typecalc.hpp"
+#include "../template-tools/trie/trie.hpp"
 #include <cstdio>
 #include  <cctype>
 #include <cstdlib>
 #include <array>
-#include <trie.hpp>
 #include <iostream>
 
 using namespace std;
@@ -18,7 +18,7 @@ namespace  StaticJSON {
 static constexpr std::size_t SkipNestedStructuresLimit = 20;
 
 
-using namespace SString;
+using namespace TypeStringLiteralExploder;
 
 template <typename TypeT, typename TypeLikeT, bool> struct Opt {
     static constexpr bool is_ref = false;
@@ -638,7 +638,7 @@ struct N{
 
     template <typename OtherT>
     bool operator==(const OtherT & other)const  {
-        return compare_v<Name, OtherT::Name> && member == other;
+        return TypeString::compare_v<Name, OtherT::Name> && member == other;
     }
 };
 
@@ -646,14 +646,14 @@ template <typename OutPairs, typename FieldPairMembers, typename TT = void>
 struct repacker{};
 
 template <typename ...OutPairs, typename Name, typename Member, typename ...rest>
-struct repacker<std::tuple<OutPairs...>,  std::tuple<Name, Member, rest...>, enable_if_t<is_ss_v<Name>>> :
+struct repacker<std::tuple<OutPairs...>,  std::tuple<Name, Member, rest...>, enable_if_t<TypeString::is_ss_v<Name>>> :
         repacker<std::tuple<OutPairs..., N<Name, Member>>, std::tuple<rest...>>
 {
-    static_assert ( is_ss_v<Name>);
+    static_assert ( TypeString::is_ss_v<Name>);
 };
 
 template <typename ...OutPairs, typename LastName, typename LastMember>
-struct repacker<std::tuple<OutPairs...>, std::tuple<LastName, LastMember>, enable_if_t<is_ss_v<LastName>>>{
+struct repacker<std::tuple<OutPairs...>, std::tuple<LastName, LastMember>, enable_if_t<TypeString::is_ss_v<LastName>>>{
     using type = std::tuple<OutPairs..., N<LastName, LastMember>>;
     using names =  std::tuple<typename OutPairs::Name..., LastName>;
 };
@@ -684,7 +684,7 @@ private:
     template<typename OtherT, std::size_t ... Is>
     bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
         //        using OT = std::decay_t<OtherT>;
-        bool namesCorrect =  (true && ... && ( compare_v<typename tuple_element_t<Is, typename OtherT::MemberTupleT>::Name, typename tuple_element_t<Is, MemberTupleT>::Name>));
+        bool namesCorrect =  (true && ... && ( TypeString::compare_v<typename tuple_element_t<Is, typename OtherT::MemberTupleT>::Name, typename tuple_element_t<Is, MemberTupleT>::Name>));
         bool valsCorrect =  (true && ... && (std::get<Is>(other.m_members).member == std::get<Is>(m_members).member));
         return namesCorrect && valsCorrect;
     }
@@ -709,7 +709,7 @@ public:
 
     template<typename SS>
     auto & at() {
-        static_assert (is_ss_v<SS>, "Use static string as key");
+        static_assert (TypeString::is_ss_v<SS>, "Use  typestring as key");
         static_assert (type_in_tuple_v<SS, Names>, "Static json object property not found");
         return std::get<tuple_first_type_index_v<SS, Names>>(m_members).member;
     }
@@ -853,7 +853,7 @@ public:
     static constexpr std::size_t MaxStrSize = RootObj::MaxStrSize;
 
     template<typename Iter>
-    void Serialise(Iter it) {
+    void Serialise(Iter & it) {
         m_obj.Serialise(it);
     }
 };
