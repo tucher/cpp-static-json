@@ -1,7 +1,7 @@
 #include <iostream>
 #include "static_json.hpp"
 #include "utils.h"
-#include "../template-tools/typecalc/typecalc2.hpp"
+#include "../template-tools/typecalc/typecalc.hpp"
 
 using namespace StaticJSON;
 class BoolLike {

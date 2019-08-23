@@ -4,16 +4,15 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 
-#SOURCES = main.cpp
-SOURCES = trie_test.cpp
+SOURCES = main.cpp
+#SOURCES = trie_test.cpp
 
 
 
-CONFIG += force_debug_info
+#CONFIG += force_debug_info
 
 
 HEADERS += \
-    ../template-tools/typecalc/typecalc2.hpp \
     static_json.hpp \
     trie.hpp \
     utils.h \

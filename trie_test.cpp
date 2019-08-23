@@ -7,7 +7,7 @@ using namespace std;
 using namespace TypeStringLiteralExploder;
 
 
-using strings = std::tuple <
+using strings = TypeCalc::type_tuple <
 #if 0
 TS("auspicious"),
 TS("share"),
@@ -704,7 +704,6 @@ TS("heap"),
 TS("powerful"),
 TS("interest"),
 TS("shoes"),
-#endif
 TS("push"),
 TS("detect"),
 TS("bruise"),
@@ -798,6 +797,7 @@ TS("decision"),
 TS("wiggly"),
 TS("noxious"),
 TS("ink"),
+
 TS("shrill"),
 TS("song"),
 TS("geese"),
@@ -862,8 +862,6 @@ TS("thoughtful"),
 TS("blood"),
 TS("happen"),
 TS("car"),
-
-
 TS("pollution"),
 TS("ultra"),
 TS("hard"),
@@ -901,8 +899,8 @@ TS("yummy"),
 TS("steel"),
 TS("meal"),
 TS("eager"),
+#endif
 TS("old"),
-
 TS("expand"),
 TS("polish"),
 TS("sin"),
@@ -992,7 +990,6 @@ TS("mighty"),
 TS("launch"),
 TS("plants"),
 TS("yielding"),
-
 TS("feeble"),
 TS("abnormal"),
 TS("tin"),
@@ -1008,22 +1005,31 @@ TS("jittery")
 >;
 
 
-
+using strings2 = TypeCalc::type_tuple <
+    TS("jittery"),
+    TS("jitter"),
+    TS("jitte"),
+    TS("jitt"),
+    TS("jit"),
+    TS("jitx"),
+    TS("jitz")
+>;
 
 int main(int , char **argv) {
     std::size_t s = 0; while(argv[1][s] != 0) s ++;
-//    size_t size = s;
+    size_t size = s;
     char *data = argv[1];
 
-    using Trie = StaticTrie::Trie<strings>;
-
+    using Trie = StaticTrie<strings>;
+    std::size_t index = 0;
     int result = -1;
     auto clb = [&](auto matchInfo) -> char {
         data ++;
+        index++;
         using MatchInfo = decltype (matchInfo);
 //        cout << "Matched: " << endl;
-//        iterateTypeTuple((typename MatchInfo::MatchedStrings*)nullptr, [](auto * s){
-//            using S = typename std::remove_pointer_t<decltype (s)>::ItemT;
+//        iterateTypeTuple((typename MatchInfo::MatchedStringsIndexes*)nullptr, [](auto * s){
+//            using S = Trie::get_str<std::remove_pointer_t<decltype (s)>> ;
 //            cout << "\t " << S::c_str() << endl;
 //        });
 //        cout << endl;
@@ -1037,9 +1043,11 @@ int main(int , char **argv) {
 //            cout << "End Node!" << endl;
         }
         if constexpr(matchInfo.hasFull) {
-            result = matchInfo.index;
-//            cout <<  matchInfo.index << endl;
-            return -1;
+            if(index >= s-1 || matchInfo.isLast) {
+                result = matchInfo.index;
+    //            cout <<  matchInfo.index << endl;
+                return -1;
+            }
         }
         return *data;
     };
@@ -1050,6 +1058,8 @@ int main(int , char **argv) {
     //cout << "Search ended at " << endedAt -bg << endl;
 
     Trie::search(*data, clb);
+    cout << "index  " << index << endl;
+    cout << "result  " << result << endl;
 //    cout << "Search ended at pos " << r - data << " of data " << data << endl;
     return result;
 }

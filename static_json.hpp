@@ -678,7 +678,7 @@ public:
 
     //    static_assert((true && ... && IsWithName<Members>::value), "Please, use N wrapper to create object members");
 
-    using Trie = StaticTrie::Trie<Names>;
+    using Trie = StaticTrie<Names>;
 private:
     template<typename OtherT, std::size_t ... Is>
     bool cmp_helper(const OtherT &other, std::index_sequence<Is...>) const {
@@ -757,10 +757,10 @@ public:
             index ++;
             using MatchInfo = decltype (matchInfo);
 
-            if constexpr(matchInfo.hasFull) {
+            if constexpr(MatchInfo::hasFull) {
                 if(it == end) return -1;
-                if constexpr(matchInfo.isLast) {
-                    using ThisNodeStr = typename MatchInfo::NodeString;
+                if constexpr(MatchInfo::isLast) {
+                    using ThisNodeStr = typename std::tuple_element_t<MatchInfo::index, Names>;
                     while(index-1 < ThisNodeStr::Size && it != end) {
                         if (ThisNodeStr::c_str()[index-1] != *it) {
                             return -1;
@@ -781,7 +781,7 @@ public:
                 ++it;
                 skipWS(it, end);
                 if(it == end) return -1;
-                std::get<matchInfo.index>(m_members).member.Deserialise(it, end);
+                std::get<MatchInfo::index>(m_members).member.Deserialise(it, end);
                 fieldConsumed = true;
                 return -1;
             } else
@@ -797,6 +797,11 @@ public:
             if(it == end) return;
             ++it;
             Trie::search(*it, clb);
+
+
+
+
+
             if(!fieldConsumed) {
                 while(*it != '"' && it != end) ++it;
                 if(it == end) return;
