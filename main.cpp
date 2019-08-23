@@ -1,8 +1,8 @@
 #include <iostream>
 #include "static_json.hpp"
 #include "utils.h"
-#define FFUUU
-#ifdef FFUUU
+#include "../template-tools/typecalc/typecalc2.hpp"
+
 using namespace StaticJSON;
 class BoolLike {
     bool m_val;
@@ -88,20 +88,8 @@ void measureSlowSer() {
 //    std::cout << "serialisation speed:" << endl << 10000000.0/(double(us)) << " op/us" << endl;
 }
 
-#endif
-
-int test_trie(char *data, size_t size);
-
-template <auto TS>
-struct TestSS {
-  using SST = decltype (TS);
-
-};
 
 int main(int , char **argv) {
-    std::size_t s = 0; while(argv[1][s] != 0) s ++;
-//    return test_trie(argv[1], s);
-#ifdef FFUUU
     BoolLike boolObj = false;
 
     BaseBool<BoolLike> jsonBool(boolObj);
@@ -155,17 +143,7 @@ int main(int , char **argv) {
               >
            ;
 
-    using TrieT = tuple_element_t<1, Msg2Type::MemberTupleT>::MemberT::Trie;
-    static_assert (TrieT::L::Last == false);
-    static_assert (tuple_size_v<TrieT::L::InputStringTuple> == 2);
-    static_assert (std::tuple_element_t<0, TrieT::L::NextNodes>::Key == 's');
-    static_assert (std::tuple_element_t<1, TrieT::L::NextNodes>::Key == 'f');
 
-//    static_assert (std::tuple_element_t<0, Trie::L::NextNodes>::Layer::Last == true);
-//    static_assert (std::tuple_element_t<1, Trie::L::NextNodes>::Layer::Last == true);
-
-//    static_assert (is_same_v<std::tuple_element_t<0, Trie::L::NextNodes>::Layer::NodeString::ItemT, TS("state")>);
-//    static_assert (is_same_v<std::tuple_element_t<1, Trie::L::NextNodes>::Layer::NodeString::ItemT, TS("flag")>);
 
     Msg2Type obj;
     obj.at<TS("bf")>() = true;
@@ -229,10 +207,9 @@ int main(int , char **argv) {
     !obj.at<TS("too_few")>().at<3>().wasSet &&
     !obj.at<TS("too_few")>().at<4>().wasSet ;
     if(obj == checker&& setFlag) {
-        cout << "Deser correct" << endl;;
+        cout << "Deser correct" << endl;
     } else {
-        cout << "Deser INCORRECT" << endl;;
+        cout << "Deser INCORRECT" << endl;
     }
     return 0;
-#endif
 }

@@ -755,21 +755,14 @@ public:
         std::size_t index = 0;
         auto clb = [&](auto matchInfo) -> char {
             index ++;
-//            using MatchInfo = decltype (matchInfo);
-            //            cout << "Matched: " << endl;
-            //            iterateTuple(typename MatchInfo::MatchedStrings(), [](auto s){
-            //                cout << "\t " << decltype (s)::ItemT::c_str() << endl;
-            //            });
-            //            cout << endl;
-            //            if constexpr(matchInfo.hasFull) {
-            //                cout << "Full Node string: " << MatchInfo::NodeString::c_str() << endl;
-            //            }
+            using MatchInfo = decltype (matchInfo);
 
             if constexpr(matchInfo.hasFull) {
                 if(it == end) return -1;
                 if constexpr(matchInfo.isLast) {
-                    while(index-1 < std::tuple_element_t<matchInfo.index, Names>::Size && it != end) {
-                        if (std::tuple_element_t<matchInfo.index, Names>::c_str()[index-1] != *it) {
+                    using ThisNodeStr = typename MatchInfo::NodeString;
+                    while(index-1 < ThisNodeStr::Size && it != end) {
+                        if (ThisNodeStr::c_str()[index-1] != *it) {
                             return -1;
                         }
                         ++index;
